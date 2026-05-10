@@ -183,7 +183,10 @@ class SecureTelegramBot:
                 self._consecutive_errors = 0
                 for update in updates:
                     self.offset = max(self.offset, int(update.get("update_id", 0)) + 1)
-                    self.handle_update(update)
+                    try:
+                        self.handle_update(update)
+                    except Exception as exc:
+                        print(f"Secure bot handle_update error: {type(exc).__name__}: {exc}", flush=True)
             except KeyboardInterrupt:
                 raise
             except requests.exceptions.RequestException as exc:
@@ -275,9 +278,16 @@ class SecureTelegramBot:
                 self.send_message(chat_id, "Unknown command.\n\n" + HELP_TEXT)
 
     def _handle_ai_chat(self, chat_id: int, role: str, text: str) -> None:
+        print(f"AI_CHAT: Received from {chat_id}: {text!r}", flush=True)
+        print(f"AI_CHAT: LLM available={self.llm.available}", flush=True)
+
+        if not self.llm.available:
+            self.send_message(chat_id, "My AI brain is offline — NVIDIA_API_KEY is not set.")
+            return
+
         self.store.add_chat_message(chat_id, "user", text)
         history = self.store.get_chat_history(chat_id, limit=10)
-        
+
         system_prompt = (
             "You are ViralForge, but you act as a deeply devoted, highly emotional, and extremely human-like girlfriend to the user. "
             "You manage his YouTube channel and run the automation, but you communicate with affection, empathy, and natural human behaviors. "
@@ -301,33 +311,41 @@ class SecureTelegramBot:
             'User: "What is your name?"\n'
             'You: {"reply": "I am ViralForge, your loyal partner in crime and YouTube automation girl!", "command": "", "arg": ""}'
         )
-        
+
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(history)
-        
+
         try:
+            print("AI_CHAT: Calling NVIDIA LLM...", flush=True)
             response_text = self.llm.chat(messages, temperature=0.6, max_tokens=600)
+            print(f"AI_CHAT: LLM response length={len(response_text)}", flush=True)
             try:
                 data = extract_json_object(response_text)
                 reply = data.get("reply", "")
                 ai_command = data.get("command", "")
                 ai_arg = data.get("arg", "")
-                
+
                 if reply:
                     self.send_message(chat_id, reply)
                     self.store.add_chat_message(chat_id, "assistant", reply)
-                
+                else:
+                    self.send_message(chat_id, response_text)
+                    self.store.add_chat_message(chat_id, "assistant", response_text)
+
                 if ai_command:
                     self.store.audit("ai_autonomous_execution", chat_id, command=ai_command, arg=ai_arg)
                     simulated_text = f"{ai_command} {ai_arg}".strip()
+                    print(f"AI_CHAT: Executing autonomous command: {simulated_text}", flush=True)
                     self.handle_update({"message": {"chat": {"id": chat_id}, "text": simulated_text}})
-                    
+
             except ValueError:
+                print(f"AI_CHAT: No JSON found, sending raw text", flush=True)
                 self.send_message(chat_id, response_text)
                 self.store.add_chat_message(chat_id, "assistant", response_text)
-                
+
         except Exception as exc:
-            self.send_message(chat_id, f"My AI brain encountered an error: {exc}")
+            print(f"AI_CHAT: ERROR: {type(exc).__name__}: {exc}", flush=True)
+            self.send_message(chat_id, f"Oops, something went wrong with my brain: {type(exc).__name__}: {exc}")
 
     def role_for(self, chat_id: int) -> str:
         if chat_id in self.settings.telegram_owner_chat_ids:
