@@ -19,7 +19,7 @@ def retention_events_for(scene_index: int, purpose: str, duration: float, shot_t
         events.append({"time": 0.0, "event": "cold_open_impact"})
 
     if duration >= 2.4:
-        events.append({"time": round(min(1.05, duration * 0.26), 2), "event": "camera_angle_change"})
+        events.append({"time": round(min(0.8, duration * 0.26), 2), "event": "camera_angle_change"})
     if duration >= 3.4:
         events.append({"time": round(duration * 0.52, 2), "event": _middle_event(purpose, scene_index)})
     if duration >= 4.6:

@@ -34,7 +34,7 @@ def upload_video(video_path: Path, metadata: UploadMetadata, settings: Settings)
         "snippet": {
             "title": metadata.title,
             "description": metadata.description,
-            "tags": metadata.tags,
+            "tags": metadata.tags[:5],  # Optimize for 2026 Shorts algorithm: max 5 highly relevant hashtags
             "categoryId": metadata.category_id,
             "defaultLanguage": settings.youtube_default_language,
             "defaultAudioLanguage": settings.youtube_default_language,
