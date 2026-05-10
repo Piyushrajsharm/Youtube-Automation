@@ -343,6 +343,8 @@ class SecureTelegramBot:
             return True
         if role == GUEST:
             return False
+        if not command.startswith("/"):
+            return role == OWNER
         if command in READ_COMMANDS:
             return True
         if role in {OWNER, ADMIN} and command in ADMIN_COMMANDS:
