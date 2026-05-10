@@ -15,7 +15,8 @@ import requests
 from .automation import run_once, upload_existing_package
 from .config import Settings, load_strategy
 from .trends import collect_trends
-from .utils import ensure_dir, read_json, write_json
+from .utils import ensure_dir, read_json, write_json, extract_json_object
+from .llm import NvidiaChatClient
 
 
 OWNER = "owner"
@@ -127,6 +128,18 @@ class SecureBotStore:
         with self._lock, self.audit_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
+    def get_chat_history(self, chat_id: int, limit: int = 10) -> list[dict[str, str]]:
+        state = self.load()
+        history = state.setdefault("chat_history", {}).get(str(chat_id), [])
+        return history[-limit:]
+
+    def add_chat_message(self, chat_id: int, role: str, content: str) -> None:
+        state = self.load()
+        history = state.setdefault("chat_history", {}).setdefault(str(chat_id), [])
+        history.append({"role": role, "content": content})
+        state["chat_history"][str(chat_id)] = history[-20:]
+        self.save(state)
+
 
 class SecureTelegramBot:
     def __init__(self, settings: Settings, strategy: dict[str, Any] | None = None) -> None:
@@ -140,6 +153,7 @@ class SecureTelegramBot:
         self.jobs: queue.Queue[str] = queue.Queue()
         self.worker = threading.Thread(target=self._worker_loop, daemon=True)
         self.autopilot_thread = threading.Thread(target=self._autopilot_loop, daemon=True)
+        self.llm = NvidiaChatClient(settings)
         self._consecutive_errors = 0
         self._recover_stuck_jobs()
 
@@ -255,7 +269,64 @@ class SecureTelegramBot:
                 status = "ON" if state.get("autopilot") else "OFF"
                 self.send_message(chat_id, f"Autopilot is {status}. Use /autopilot on or /autopilot off.")
         else:
-            self.send_message(chat_id, "Unknown command.\n\n" + HELP_TEXT)
+            if role in {OWNER, ADMIN} and self.llm.available:
+                self._handle_ai_chat(chat_id, role, text)
+            else:
+                self.send_message(chat_id, "Unknown command.\n\n" + HELP_TEXT)
+
+    def _handle_ai_chat(self, chat_id: int, role: str, text: str) -> None:
+        self.store.add_chat_message(chat_id, "user", text)
+        history = self.store.get_chat_history(chat_id, limit=10)
+        
+        system_prompt = (
+            "You are ViralForge, an advanced, autonomous YouTube Automation AI agent. "
+            "You manage the user's YouTube channel and act as a highly competent executive production assistant.\n\n"
+            "You can execute tasks by outputting a JSON command block. The available internal commands are:\n"
+            "- `/status`: Get current bot status, usage, and autopilot info.\n"
+            "- `/jobs`: List recent jobs.\n"
+            "- `/plan [topic]`: Generate a video plan.\n"
+            "- `/render [topic]`: Render a video but don't upload.\n"
+            "- `/render_upload [topic]`: Render and immediately queue for upload.\n"
+            "- `/autopilot on` or `/autopilot off`: Toggle 24/7 autonomous production.\n"
+            "- `/upload_latest`: Upload the last rendered video.\n\n"
+            "If the user asks you a question or just wants to chat, provide a helpful natural language response. "
+            "If the user asks you to perform a task or action, you MUST output a JSON object with 'command' and 'arg' fields to execute it, "
+            "along with a 'reply' field for your conversational response to the user.\n\n"
+            "Examples:\n"
+            'User: "Make a video about SpaceX"\n'
+            'You: {"reply": "I am on it! I have queued a new video render and upload for SpaceX.", "command": "/render_upload", "arg": "SpaceX"}\n\n'
+            'User: "How are we doing today?"\n'
+            'You: {"reply": "Let me check our status right now.", "command": "/status", "arg": ""}\n\n'
+            'User: "What is your name?"\n'
+            'You: {"reply": "I am ViralForge, your autonomous YouTube production assistant!", "command": "", "arg": ""}'
+        )
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(history)
+        
+        try:
+            response_text = self.llm.chat(messages, temperature=0.6, max_tokens=600)
+            try:
+                data = extract_json_object(response_text)
+                reply = data.get("reply", "")
+                ai_command = data.get("command", "")
+                ai_arg = data.get("arg", "")
+                
+                if reply:
+                    self.send_message(chat_id, reply)
+                    self.store.add_chat_message(chat_id, "assistant", reply)
+                
+                if ai_command:
+                    self.store.audit("ai_autonomous_execution", chat_id, command=ai_command, arg=ai_arg)
+                    simulated_text = f"{ai_command} {ai_arg}".strip()
+                    self.handle_update({"message": {"chat": {"id": chat_id}, "text": simulated_text}})
+                    
+            except ValueError:
+                self.send_message(chat_id, response_text)
+                self.store.add_chat_message(chat_id, "assistant", response_text)
+                
+        except Exception as exc:
+            self.send_message(chat_id, f"My AI brain encountered an error: {exc}")
 
     def role_for(self, chat_id: int) -> str:
         if chat_id in self.settings.telegram_owner_chat_ids:
