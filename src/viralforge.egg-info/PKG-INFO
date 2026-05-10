@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: viralforge
+Version: 0.1.0
+Summary: Trend-aware original animated YouTube video automation with copyright and policy guardrails.
+Requires-Python: >=3.11
+Requires-Dist: beautifulsoup4>=4.12.3
+Requires-Dist: feedparser>=6.0.11
+Requires-Dist: google-api-python-client>=2.160.0
+Requires-Dist: google-auth-httplib2>=0.2.0
+Requires-Dist: google-auth-oauthlib>=1.2.1
+Requires-Dist: moviepy<2.0,>=1.0.3
+Requires-Dist: numpy>=1.26.4
+Requires-Dist: Pillow>=10.4.0
+Requires-Dist: edge-tts>=7.0.0
+Requires-Dist: pyttsx3>=2.90
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: requests>=2.32.3
+Requires-Dist: rich>=13.9.0
+Requires-Dist: tenacity>=9.0.0

@@ -1,0 +1,9 @@
+[Unit]
+Description=ViralForge autopilot run
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/viralforge
+ExecStart=/usr/bin/docker compose -f /opt/viralforge/deploy/docker-compose.yml run --rm viralforge viralforge autopilot --upload

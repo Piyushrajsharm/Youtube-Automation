@@ -1,0 +1,114 @@
+{
+  "geo": "US",
+  "language": "en",
+  "niches": [
+    "AI tools",
+    "consumer technology",
+    "science breakthroughs",
+    "creator economy",
+    "future of work"
+  ],
+  "google_news_queries": [
+    "AI tools breakthrough",
+    "new technology trend",
+    "science discovery today",
+    "creator economy trend",
+    "future of work AI",
+    "tech news today",
+    "AI tools quiz",
+    "funny tech meme",
+    "new gadget launch"
+  ],
+  "format_queries": [
+    "tech news today",
+    "AI comedy tech",
+    "technology quiz challenge",
+    "gadget quiz",
+    "AI tools trend",
+    "cybersecurity news",
+    "startup tech trend",
+    "creator tools news"
+  ],
+  "subreddits": [
+    "technology",
+    "Futurology",
+    "artificial",
+    "science"
+  ],
+  "blocked_terms": [
+    "graphic violence",
+    "explicit",
+    "adult",
+    "pirated",
+    "leaked movie",
+    "celebrity death hoax",
+    "medical cure",
+    "treating",
+    "diagnose",
+    "dosage",
+    "antibiotic",
+    "panic attacks",
+    "depression",
+    "anxiety disorder",
+    "guaranteed cure",
+    "guaranteed profit",
+    "investment advice",
+    "stock pick",
+    "crypto pump",
+    "election fraud"
+  ],
+  "source_weights": {
+    "google_trends": 5.0,
+    "google_news": 3.0,
+    "reddit": 2.5,
+    "hacker_news": 2.0
+  },
+  "growth_strategy": {
+    "format": "shorts",
+    "max_hashtags": 5,
+    "title_max_chars": 70,
+    "description_max_chars": 4500,
+    "default_hashtags": [
+      "#Shorts",
+      "#Tech",
+      "#AI"
+    ],
+    "retention_rules": [
+      "HOOK: First 1.5 seconds must create a visceral reaction — shock, curiosity gap, or a bold contrarian claim. This is the single most important line in the entire video.",
+      "PATTERN INTERRUPT: Every 8-12 seconds, break the visual or audio pattern — zoom cut, new color, sound effect, or text animation change — to reset the viewer's attention timer.",
+      "OPEN LOOP: Plant an unanswered question early (scene 1 or 2) that only gets resolved in the final scene. This forces completions.",
+      "ONE IDEA PER SCENE: Never cram two facts into one scene. Fast cuts with single clear ideas beat slow scenes with complex explanations.",
+      "CONVERSATIONAL TONE: Write as if texting a smart friend. Use contractions, rhetorical questions, and casual phrasing. Never sound like a corporate narrator or Wikipedia.",
+      "EMOTIONAL ARC: Structure tension as rising stakes. Each scene should feel slightly more intense or surprising than the last.",
+      "CTA LOOP: End with a question or prediction that makes the viewer want to rewatch or comment. Loopable endings boost replay rate.",
+      "AVOID DEAD AIR: Never have more than 0.3 seconds of silence. Dead air kills retention on Shorts."
+    ],
+    "title_rules": [
+      "Use emotional trigger words: 'secretly', 'just changed', 'nobody noticed', 'finally', 'just leaked', 'warning'.",
+      "Front-load the most clickable word in the first 3 words of the title.",
+      "Never use generic titles like 'Tech News Update' or 'AI Explained'.",
+      "Use numbers when possible: '3 AI Tools', '5 Seconds', '90% of People'.",
+      "Keep titles between 40-65 characters for maximum mobile CTR.",
+      "Create curiosity gap: promise a revelation without giving it away."
+    ],
+    "description_seo_rules": [
+      "First 2 lines of description must contain the primary keyword naturally — YouTube indexes these heavily.",
+      "Include 3-5 relevant long-tail keywords in the description body.",
+      "Add timestamps if video is over 60 seconds.",
+      "Include a call-to-action: 'Subscribe for daily tech in 60 seconds'.",
+      "End with hashtags — YouTube surfaces these in search."
+    ],
+    "upload_timing": {
+      "optimal_hours_utc": [13, 14, 15, 16, 17, 18],
+      "optimal_days": ["tuesday", "wednesday", "thursday", "friday"],
+      "note": "Peak US engagement window: 9AM-2PM EST = 13:00-18:00 UTC"
+    },
+    "tags_strategy": [
+      "Include the exact topic as the first tag.",
+      "Add 2-3 broad category tags (AI, tech news, gadgets).",
+      "Add 2-3 long-tail search phrases viewers would actually type.",
+      "Add competitor/related channel topic tags.",
+      "Stay under 500 characters total for all tags."
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run ViralForge autopilot every day
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

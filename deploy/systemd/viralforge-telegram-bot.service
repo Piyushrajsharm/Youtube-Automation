@@ -1,0 +1,14 @@
+[Unit]
+Description=ViralForge Telegram control bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/viralforge
+ExecStart=/usr/bin/docker compose -f /opt/viralforge/deploy/docker-compose.yml run --rm viralforge viralforge telegram-bot
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

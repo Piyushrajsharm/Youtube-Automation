@@ -1,0 +1,2 @@
+[console_scripts]
+viralforge = viralforge.cli:main

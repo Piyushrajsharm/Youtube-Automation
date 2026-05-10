@@ -1,0 +1,14 @@
+services:
+  viralforge:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    env_file:
+      - ../.env
+    volumes:
+      - ../outputs:/app/outputs
+      - ../credentials:/app/credentials
+      - ../config:/app/config:ro
+      - ../assets:/app/assets:ro
+    restart: "no"
+    command: ["viralforge", "autopilot"]
