@@ -183,10 +183,15 @@ class SecureTelegramBot:
                 self._consecutive_errors = 0
                 for update in updates:
                     self.offset = max(self.offset, int(update.get("update_id", 0)) + 1)
-                    try:
-                        self.handle_update(update)
-                    except Exception as exc:
-                        print(f"Secure bot handle_update error: {type(exc).__name__}: {exc}", flush=True)
+                    
+                    # Offload to a thread so slow tasks (like LLM API retries) never freeze polling
+                    def _run_handler(u=update):
+                        try:
+                            self.handle_update(u)
+                        except Exception as exc:
+                            print(f"Secure bot handle_update error: {type(exc).__name__}: {exc}", flush=True)
+                    
+                    threading.Thread(target=_run_handler, daemon=True).start()
             except KeyboardInterrupt:
                 raise
             except requests.exceptions.RequestException as exc:
