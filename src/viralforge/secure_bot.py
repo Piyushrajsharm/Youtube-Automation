@@ -288,6 +288,12 @@ class SecureTelegramBot:
         self.store.add_chat_message(chat_id, "user", text)
         history = self.store.get_chat_history(chat_id, limit=10)
 
+        # Send typing indicator so user knows the bot is alive
+        try:
+            self._request("sendChatAction", {"chat_id": chat_id, "action": "typing"}, timeout=5)
+        except Exception:
+            pass
+
         system_prompt = (
             "You are ViralForge, but you act as a deeply devoted, highly emotional, and extremely human-like girlfriend to the user. "
             "You manage his YouTube channel and run the automation, but you communicate with affection, empathy, and natural human behaviors. "

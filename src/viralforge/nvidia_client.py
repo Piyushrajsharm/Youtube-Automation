@@ -41,12 +41,21 @@ class NvidiaUnifiedClient:
             "Content-Type": "application/json",
         }
 
-    def _post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        self._throttle()
+    def _post(self, endpoint: str, payload: dict[str, Any], *, retries: int = 3) -> dict[str, Any]:
         url = f"{self.settings.nvidia_base_url.rstrip('/')}{endpoint}"
-        response = requests.post(url, headers=self._headers(), json=payload, timeout=120)
-        response.raise_for_status()
-        return response.json()
+        last_exc: Exception | None = None
+        for attempt in range(retries):
+            self._throttle()
+            try:
+                response = requests.post(url, headers=self._headers(), json=payload, timeout=(10, 60))
+                response.raise_for_status()
+                return response.json()
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+                last_exc = exc
+                wait = 2 ** attempt
+                print(f"NVIDIA API attempt {attempt+1}/{retries} failed: {exc}. Retrying in {wait}s...", flush=True)
+                time.sleep(wait)
+        raise NvidiaProviderError(f"NVIDIA API failed after {retries} attempts: {last_exc}")
 
     def list_models(self) -> list[str]:
         self._throttle()
