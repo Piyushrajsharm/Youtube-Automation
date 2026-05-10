@@ -453,8 +453,8 @@ class SecureTelegramBot:
                 self.send_message(chat_id, self._job_done_text(self.store.get_job(job_id) or job))
             elif job_type in {"render", "render_upload"}:
                 self.store.increment_usage("renders")
-                # Execute heavy rendering in a separate process to prevent GIL from freezing the Telegram bot
-                with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+                # Execute heavy rendering in a separate thread to prevent GIL from freezing the Telegram bot
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(
                         run_once,
                         self.settings,
