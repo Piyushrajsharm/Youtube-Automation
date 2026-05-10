@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 import uuid
+import concurrent.futures
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -349,7 +350,17 @@ class SecureTelegramBot:
                 self.send_message(chat_id, self._job_done_text(self.store.get_job(job_id) or job))
             elif job_type in {"render", "render_upload"}:
                 self.store.increment_usage("renders")
-                package = run_once(self.settings, self.strategy, topic=str(job.get("topic") or ""), render=True, upload=False)
+                # Execute heavy rendering in a separate process to prevent GIL from freezing the Telegram bot
+                with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        run_once,
+                        self.settings,
+                        self.strategy,
+                        topic=str(job.get("topic") or ""),
+                        render=True,
+                        upload=False
+                    )
+                    package = future.result()
                 metadata_path = package.output_dir / "metadata.json"
                 video_path = package.rendered.get("video")
                 updates = {
