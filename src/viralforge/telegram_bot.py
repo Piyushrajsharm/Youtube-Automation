@@ -49,11 +49,16 @@ class TelegramController:
             except requests.exceptions.RequestException as exc:
                 self._consecutive_errors += 1
                 time.sleep(min(30, 2 * self._consecutive_errors))
+            except TelegramBotError as exc:
+                self._consecutive_errors += 1
+                backoff = min(60, 5 * self._consecutive_errors)
+                print(f"Telegram bot API error (backoff {backoff}s): {exc}", flush=True)
+                time.sleep(backoff)
             except Exception as exc:
                 self._consecutive_errors += 1
                 backoff = min(60, 5 * self._consecutive_errors)
-                print(f"Telegram bot error (backoff {backoff}s): {type(exc).__name__}: {exc}", flush=True)
-                self._safe_send_admin(f"Telegram bot error: {type(exc).__name__}: {exc}")
+                print(f"Telegram bot critical error (backoff {backoff}s): {type(exc).__name__}: {exc}", flush=True)
+                self._safe_send_admin(f"Telegram bot critical error: {type(exc).__name__}: {exc}")
                 time.sleep(backoff)
 
     def handle_update(self, update: dict[str, Any]) -> None:

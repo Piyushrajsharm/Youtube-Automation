@@ -199,11 +199,16 @@ class SecureTelegramBot:
                 backoff = min(30, 2 * self._consecutive_errors)
                 print(f"Secure bot network error (backoff {backoff}s): {type(exc).__name__}: {exc}", flush=True)
                 time.sleep(backoff)
+            except SecureBotError as exc:
+                self._consecutive_errors += 1
+                backoff = min(60, 5 * self._consecutive_errors)
+                print(f"Secure bot API error (backoff {backoff}s): {exc}", flush=True)
+                time.sleep(backoff)
             except Exception as exc:
                 self._consecutive_errors += 1
                 backoff = min(60, 5 * self._consecutive_errors)
-                print(f"Secure bot polling error (backoff {backoff}s): {type(exc).__name__}: {exc}", flush=True)
-                self._safe_notify_owners(f"Secure bot error: {type(exc).__name__}: {exc}")
+                print(f"Secure bot critical error (backoff {backoff}s): {type(exc).__name__}: {exc}", flush=True)
+                self._safe_notify_owners(f"Secure bot critical error: {type(exc).__name__}: {exc}")
                 time.sleep(backoff)
 
     def handle_update(self, update: dict[str, Any]) -> None:
