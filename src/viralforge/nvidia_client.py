@@ -47,7 +47,7 @@ class NvidiaUnifiedClient:
         for attempt in range(retries):
             self._throttle()
             try:
-                response = requests.post(url, headers=self._headers(), json=payload, timeout=(10, 60))
+                response = requests.post(url, headers=self._headers(), json=payload, timeout=(15, 120))
                 response.raise_for_status()
                 return response.json()
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:

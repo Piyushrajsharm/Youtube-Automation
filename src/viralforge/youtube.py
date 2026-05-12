@@ -10,7 +10,7 @@ from .models import UploadMetadata
 from .utils import ensure_dir
 
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 RETRIABLE_STATUS_CODES = {500, 502, 503, 504}
 RETRIABLE_EXCEPTIONS = (OSError, TimeoutError)
 

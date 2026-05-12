@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import queue
+import socket
 import threading
 import time
 import uuid
@@ -155,6 +156,8 @@ class SecureTelegramBot:
         self.autopilot_thread = threading.Thread(target=self._autopilot_loop, daemon=True)
         self.llm = NvidiaChatClient(settings)
         self._consecutive_errors = 0
+        self._instance_socket: socket.socket | None = None
+        self._acquire_single_instance_lock()
         self._recover_stuck_jobs()
 
     def run_forever(self) -> None:
@@ -709,7 +712,7 @@ class SecureTelegramBot:
         payload: dict[str, Any] = {"chat_id": chat_id, "text": text[:3900]}
         if reply_markup:
             payload["reply_markup"] = json.dumps(reply_markup)
-        self._request("sendMessage", payload, timeout=30)
+        self._request_get("sendMessage", payload, timeout=(10, 20))
 
     def _maybe_send_video(self, chat_id: int, video_path: Path) -> None:
         limit_bytes = max(1, self.settings.telegram_send_video_max_mb) * 1024 * 1024
@@ -725,25 +728,44 @@ class SecureTelegramBot:
             )
 
     def _clear_stale_connections(self) -> None:
-        """Drop any old webhook and flush stale getUpdates to prevent 409 conflicts."""
+        """Drop webhook mode. Do not flush pending updates."""
         try:
             requests.post(
                 f"{self.base_url}/deleteWebhook",
                 data={"drop_pending_updates": False},
                 timeout=(5, 10),
             )
-            # Short getUpdates with offset=-1 to clear Telegram's pending queue
-            resp = requests.post(
-                f"{self.base_url}/getUpdates",
-                data={"offset": -1, "timeout": 0},
-                timeout=(5, 10),
-            )
-            result = resp.json().get("result", [])
-            if result:
-                self.offset = int(result[-1].get("update_id", 0)) + 1
-            print("Cleared stale Telegram connections.", flush=True)
+            print("Webhook mode disabled; long polling active.", flush=True)
         except Exception as exc:
             print(f"Warning: could not clear stale connections: {exc}", flush=True)
+
+    def _acquire_single_instance_lock(self) -> None:
+        """Prevent duplicate local bot processes from causing Telegram 409 conflicts."""
+        port = int(getattr(self.settings, "secure_bot_instance_lock_port", 48642))
+        if port <= 0:
+            return
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.bind(("127.0.0.1", port))
+            sock.listen(1)
+        except OSError as exc:
+            sock.close()
+            raise SecureBotError(
+                "Another ViralForge secure bot instance is already running. "
+                "Stop the old process before starting a new one."
+            ) from exc
+        self._instance_socket = sock
+
+    def close(self) -> None:
+        if self._instance_socket:
+            self._instance_socket.close()
+            self._instance_socket = None
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _recover_stuck_jobs(self) -> None:
         """Mark any stuck 'running' jobs as 'crashed' on startup."""
