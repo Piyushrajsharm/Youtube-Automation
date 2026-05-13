@@ -157,6 +157,8 @@ class SecureTelegramBot:
         self.llm = NvidiaChatClient(settings)
         self._consecutive_errors = 0
         self._instance_socket: socket.socket | None = None
+        self._worker_start_lock = threading.Lock()
+        self._workers_started = False
         self._acquire_single_instance_lock()
         recovered = recover_incomplete_render_packages(settings)
         if recovered:
@@ -168,9 +170,7 @@ class SecureTelegramBot:
         print(f"Owner chat IDs configured: {len(self.settings.telegram_owner_chat_ids)}", flush=True)
         print("Waiting for Telegram messages. Send /id to your bot.", flush=True)
         self._clear_stale_connections()
-        self.worker.start()
-        self.autopilot_thread.start()
-        self._safe_notify_owners("Secure ViralForge bot is online. Send /help.")
+        self.start_background_workers(notify_owners=True)
         while True:
             try:
                 poll_timeout = self.settings.telegram_poll_timeout
@@ -293,6 +293,16 @@ class SecureTelegramBot:
             else:
                 self.send_message(chat_id, "Unknown command.\n\n" + HELP_TEXT)
 
+    def start_background_workers(self, *, notify_owners: bool = False) -> None:
+        with self._worker_start_lock:
+            if self._workers_started:
+                return
+            self.worker.start()
+            self.autopilot_thread.start()
+            self._workers_started = True
+        if notify_owners:
+            self._safe_notify_owners("Secure ViralForge bot is online. Send /help.")
+
     def _handle_ai_chat(self, chat_id: int, role: str, text: str) -> None:
         print(f"AI_CHAT: Received from {chat_id}: {text!r}", flush=True)
         print(f"AI_CHAT: LLM available={self.llm.available}", flush=True)
@@ -397,7 +407,7 @@ class SecureTelegramBot:
             return
         job = self.store.create_job(job_type=job_type, topic=topic, chat_id=chat_id, role=role)
         self.jobs.put(job["id"])
-        self.send_message(chat_id, f"Queued {job_type} job `{job['id']}`.\nTopic: {topic or 'auto trend'}")
+        self._safe_send_message(chat_id, f"Queued {job_type} job `{job['id']}`.\nTopic: {topic or 'auto trend'}")
 
     def _enqueue_upload_latest(self, chat_id: int, role: str) -> None:
         latest = self._latest_rendered_package()
@@ -489,24 +499,24 @@ class SecureTelegramBot:
                     if self.settings.secure_bot_require_upload_approval:
                         updates["status"] = "awaiting_approval"
                         self.store.update_job(job_id, **updates)
-                        self._send_upload_approval(chat_id, self.store.get_job(job_id) or job)
+                        self._safe_send_upload_approval(chat_id, self.store.get_job(job_id) or job)
                     else:
                         updates["status"] = "uploading"
                         self.store.update_job(job_id, **updates)
-                        self.send_message(chat_id, f"Approval bypassed. Uploading job `{job_id}`...")
+                        self._safe_send_message(chat_id, f"Approval bypassed. Uploading job `{job_id}`...")
                         self._execute_upload(job_id)
                 else:
                     updates["status"] = "completed"
                     self.store.update_job(job_id, **updates)
-                    self.send_message(chat_id, self._job_done_text(self.store.get_job(job_id) or job))
+                    self._safe_send_message(chat_id, self._job_done_text(self.store.get_job(job_id) or job))
                     if video_path:
-                        self._maybe_send_video(chat_id, Path(str(video_path)))
+                        self._safe_maybe_send_video(chat_id, Path(str(video_path)))
             elif job_type == "upload":
                 self._execute_upload(job_id)
         except Exception as exc:
             self.store.update_job(job_id, status="failed", finished_at=_now_iso(), error=f"{type(exc).__name__}: {exc}")
             self.store.audit("job_failed", chat_id, job_id=job_id, error=f"{type(exc).__name__}: {exc}")
-            self.send_message(chat_id, f"Job `{job_id}` failed: {type(exc).__name__}: {exc}")
+            self._safe_send_message(chat_id, f"Job `{job_id}` failed: {type(exc).__name__}: {exc}")
 
     def _execute_upload(self, job_id: str) -> None:
         job = self.store.get_job(job_id)
@@ -531,7 +541,7 @@ class SecureTelegramBot:
         self.store.audit("job_uploaded", chat_id, job_id=job_id, upload_url=result.get("url"))
         topic = job.get('topic') or 'auto trend'
         timing = job.get('finished_at') or 'just now'
-        self.send_message(chat_id, f"✅ Video uploaded successfully!\n\n🕒 Timing: {timing}\n🎬 Topic: {topic}\n🔗 URL: {result.get('url')}")
+        self._safe_send_message(chat_id, f"Video uploaded successfully!\n\nTiming: {timing}\nTopic: {topic}\nURL: {result.get('url')}")
 
     def _send_upload_approval(self, chat_id: int, job: dict[str, Any]) -> None:
         text = (
@@ -549,6 +559,12 @@ class SecureTelegramBot:
             ]
         }
         self.send_message(chat_id, text, reply_markup=keyboard)
+
+    def _safe_send_upload_approval(self, chat_id: int, job: dict[str, Any]) -> None:
+        try:
+            self._send_upload_approval(chat_id, job)
+        except Exception as exc:
+            print(f"Telegram approval message failed for chat {chat_id}: {type(exc).__name__}: {exc}", flush=True)
 
     def _handle_callback(self, callback: dict[str, Any]) -> None:
         message = callback.get("message") or {}
@@ -712,6 +728,12 @@ class SecureTelegramBot:
         except Exception as exc:
             print(f"Owner notification failed: {type(exc).__name__}: {exc}", flush=True)
 
+    def _safe_send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
+        try:
+            self.send_message(chat_id, text, reply_markup=reply_markup)
+        except Exception as exc:
+            print(f"Telegram send failed for chat {chat_id}: {type(exc).__name__}: {exc}", flush=True)
+
     def send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
         payload: dict[str, Any] = {"chat_id": chat_id, "text": text[:3900]}
         if reply_markup:
@@ -730,6 +752,12 @@ class SecureTelegramBot:
                 files={"video": handle},
                 timeout=300,
             )
+
+    def _safe_maybe_send_video(self, chat_id: int, video_path: Path) -> None:
+        try:
+            self._maybe_send_video(chat_id, video_path)
+        except Exception as exc:
+            print(f"Telegram video preview failed for chat {chat_id}: {type(exc).__name__}: {exc}", flush=True)
 
     def _clear_stale_connections(self) -> None:
         """Drop webhook mode. Do not flush pending updates."""

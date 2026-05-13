@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 
 from viralforge.config import load_settings, load_strategy
 from viralforge.secure_bot import SecureTelegramBot
@@ -21,6 +21,7 @@ _bot_lock = threading.Lock()
 _bot_thread: threading.Thread | None = None
 _bot_started_at: str | None = None
 _bot_last_error: str | None = None
+_bot: SecureTelegramBot | None = None
 
 
 def _write_json_secret(secret_name: str, path_env_name: str, filename: str) -> None:
@@ -41,7 +42,7 @@ def _prepare_space_environment() -> None:
 
 
 def _run_bot_supervisor() -> None:
-    global _bot_last_error, _bot_started_at
+    global _bot, _bot_last_error, _bot_started_at
     while True:
         bot: SecureTelegramBot | None = None
         try:
@@ -49,15 +50,22 @@ def _run_bot_supervisor() -> None:
             settings = load_settings()
             strategy = load_strategy(settings)
             bot = SecureTelegramBot(settings, strategy)
+            bot.start_background_workers(notify_owners=False)
+            with _bot_lock:
+                _bot = bot
             _bot_started_at = datetime.now(UTC).isoformat()
             _bot_last_error = None
-            print("ViralForge secure Telegram bot started inside Hugging Face Space.", flush=True)
-            bot.run_forever()
+            print("ViralForge secure Telegram webhook bot started inside Hugging Face Space.", flush=True)
+            while True:
+                time.sleep(3600)
         except Exception as exc:
             _bot_last_error = f"{type(exc).__name__}: {exc}"
             print("ViralForge bot supervisor caught an error:", _bot_last_error, flush=True)
             print(traceback.format_exc(), flush=True)
         finally:
+            with _bot_lock:
+                if _bot is bot:
+                    _bot = None
             if bot is not None:
                 bot.close()
         time.sleep(BOT_RESTART_DELAY_SECONDS)
@@ -86,7 +94,21 @@ def _health_payload() -> dict[str, Any]:
         "telegram_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
         "nvidia_configured": bool(os.getenv("NVIDIA_API_KEY")),
         "pexels_configured": bool(os.getenv("PEXELS_API_KEY")),
+        "telegram_webhook_configured": bool(os.getenv("TELEGRAM_WEBHOOK_SECRET")),
     }
+
+
+def _handle_telegram_update(update: dict[str, Any]) -> None:
+    with _bot_lock:
+        bot = _bot
+    if bot is None:
+        print("Telegram webhook update received before bot was ready.", flush=True)
+        return
+    try:
+        bot.handle_update(update)
+    except Exception as exc:
+        print(f"Telegram webhook handler failed: {type(exc).__name__}: {exc}", flush=True)
+        print(traceback.format_exc(), flush=True)
 
 
 @asynccontextmanager
@@ -108,3 +130,17 @@ def root() -> dict[str, Any]:
 @app.get("/health")
 def health() -> dict[str, Any]:
     return _health_payload()
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request) -> dict[str, bool]:
+    expected_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
+    if not expected_secret:
+        raise HTTPException(status_code=404, detail="Telegram webhook is not configured.")
+    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if received_secret != expected_secret:
+        raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret.")
+
+    update = await request.json()
+    threading.Thread(target=_handle_telegram_update, args=(update,), daemon=True).start()
+    return {"ok": True}
