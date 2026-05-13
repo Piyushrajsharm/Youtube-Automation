@@ -256,6 +256,9 @@ YOUTUBE_CLIENT_SECRETS_JSON
 YOUTUBE_TOKEN_JSON
 YOUTUBE_UPLOAD_ENABLED=true
 SECURE_BOT_REQUIRE_UPLOAD_APPROVAL=false
+SECURE_BOT_AUTOPILOT_ENABLED=true
+SECURE_BOT_AUTOPILOT_INTERVAL_HOURS=8
+SECURE_BOT_AUTOPILOT_RUN_ON_START=true
 ```
 
 Use `YOUTUBE_CLIENT_SECRETS_JSON` for the full contents of `credentials/client_secret.json` and `YOUTUBE_TOKEN_JSON` for the full contents of `credentials/youtube_token.json`. Do not commit either JSON file.

@@ -156,6 +156,8 @@ def control_jobs(request: Request) -> dict[str, Any]:
         "jobs": bot.store.recent_jobs(12),
         "usage": state.get("usage", {}),
         "autopilot": bool(state.get("autopilot")),
+        "autopilot_interval_hours": state.get("autopilot_interval_hours"),
+        "last_autopilot_time": state.get("last_autopilot_time"),
         "queue_size": bot.jobs.qsize(),
     }
 
@@ -174,6 +176,35 @@ async def control_render_upload(request: Request) -> dict[str, Any]:
     bot.jobs.put(job["id"])
     print(f"Direct control queued render_upload job {job['id']} topic={topic or 'auto trend'}", flush=True)
     return {"ok": True, "job": job}
+
+
+@app.post("/control/autopilot")
+async def control_autopilot(request: Request) -> dict[str, Any]:
+    _require_admin_secret(request)
+    bot = _bot_or_503()
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    enabled = bool(payload.get("enabled", True))
+    interval_hours = float(payload.get("interval_hours") or bot.store.load().get("autopilot_interval_hours", 4))
+    run_now = bool(payload.get("run_now", False))
+    state = bot.store.load()
+    state["autopilot"] = enabled
+    state["autopilot_interval_hours"] = max(0.25, interval_hours)
+    if enabled and run_now:
+        state["last_autopilot_time"] = 0.0
+    bot.store.save(state)
+    print(
+        f"Direct control set autopilot enabled={enabled} interval={state['autopilot_interval_hours']} run_now={run_now}",
+        flush=True,
+    )
+    return {
+        "ok": True,
+        "autopilot": bool(state.get("autopilot")),
+        "autopilot_interval_hours": state.get("autopilot_interval_hours"),
+        "last_autopilot_time": state.get("last_autopilot_time"),
+    }
 
 
 @app.post("/telegram/webhook")

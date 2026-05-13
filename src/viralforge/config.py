@@ -96,6 +96,9 @@ class Settings:
     secure_bot_require_upload_approval: bool
     secure_bot_fast_render: bool
     secure_bot_instance_lock_port: int
+    secure_bot_autopilot_enabled: bool
+    secure_bot_autopilot_interval_hours: float
+    secure_bot_autopilot_run_on_start: bool
     strategy_path: Path
     advanced_rendering: bool
     cinematic_intensity: float
@@ -199,6 +202,9 @@ def load_settings() -> Settings:
         secure_bot_require_upload_approval=truthy(os.getenv("SECURE_BOT_REQUIRE_UPLOAD_APPROVAL"), default=True),
         secure_bot_fast_render=truthy(os.getenv("SECURE_BOT_FAST_RENDER"), default=True),
         secure_bot_instance_lock_port=int(os.getenv("SECURE_BOT_INSTANCE_LOCK_PORT", "48642")),
+        secure_bot_autopilot_enabled=truthy(os.getenv("SECURE_BOT_AUTOPILOT_ENABLED"), default=False),
+        secure_bot_autopilot_interval_hours=float(os.getenv("SECURE_BOT_AUTOPILOT_INTERVAL_HOURS", "4")),
+        secure_bot_autopilot_run_on_start=truthy(os.getenv("SECURE_BOT_AUTOPILOT_RUN_ON_START"), default=True),
         strategy_path=env_path("STRATEGY_PATH", "config/strategy.json"),
         advanced_rendering=truthy(os.getenv("ADVANCED_RENDERING"), default=True),
         cinematic_intensity=float(os.getenv("CINEMATIC_INTENSITY", "0.85")),

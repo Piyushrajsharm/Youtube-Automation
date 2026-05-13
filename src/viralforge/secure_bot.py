@@ -164,6 +164,7 @@ class SecureTelegramBot:
         if recovered:
             print(f"Recovered {len(recovered)} incomplete rendered package(s).", flush=True)
         self._recover_stuck_jobs()
+        self._apply_autopilot_settings()
 
     def run_forever(self) -> None:
         print("Secure ViralForge bot starting...", flush=True)
@@ -451,6 +452,33 @@ class SecureTelegramBot:
             except Exception as exc:
                 print(f"Autopilot loop error: {exc}", flush=True)
             time.sleep(60)
+
+    def _apply_autopilot_settings(self) -> None:
+        if not getattr(self.settings, "secure_bot_autopilot_enabled", False):
+            return
+
+        state = self.store.load()
+        state["autopilot"] = True
+        state["autopilot_interval_hours"] = max(
+            0.25,
+            float(getattr(self.settings, "secure_bot_autopilot_interval_hours", 4) or 4),
+        )
+        if getattr(self.settings, "secure_bot_autopilot_run_on_start", True):
+            active = {
+                "queued",
+                "running",
+                "uploading",
+                "awaiting_approval",
+            }
+            has_active_job = any(job.get("status") in active for job in state.get("jobs", []))
+            if not has_active_job:
+                state["last_autopilot_time"] = 0.0
+        self.store.save(state)
+        print(
+            "Autopilot enabled from environment "
+            f"(interval={state['autopilot_interval_hours']}h, run_on_start={getattr(self.settings, 'secure_bot_autopilot_run_on_start', True)}).",
+            flush=True,
+        )
 
     def _execute_job(self, job_id: str) -> None:
         job = self.store.get_job(job_id)
