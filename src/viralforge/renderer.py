@@ -199,6 +199,8 @@ def render_video(plan: VideoPlan, output_dir: Path, settings: Settings) -> dict[
         fps=settings.video_fps,
         codec="libx264",
         audio_codec="aac",
+        temp_audiofile=str(output_dir / "moviepy_audio_temp.m4a"),
+        remove_temp=True,
         bitrate=settings.video_bitrate,
         audio_fps=settings.audio_sample_rate,
         preset="medium",
