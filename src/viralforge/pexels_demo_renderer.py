@@ -53,7 +53,7 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
     for index, scene in enumerate(scene_plans):
         clip_path = Path(str(selected[index % len(selected)].local_path))
         segment_path = segments_dir / f"segment_{index:02d}.mp4"
-        _render_segment(ffmpeg, clip_path, scene.duration_seconds, segment_path)
+        _render_segment(ffmpeg, clip_path, scene.duration_seconds, segment_path, settings)
         segment_paths.append(segment_path)
 
     concat_path = output_dir / "concat.txt"
@@ -97,10 +97,13 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
     return rendered
 
 
-def _render_segment(ffmpeg: str, clip_path: Path, duration_seconds: float, segment_path: Path) -> None:
+def _render_segment(ffmpeg: str, clip_path: Path, duration_seconds: float, segment_path: Path, settings: Settings) -> None:
+    width = int(settings.video_width)
+    height = int(settings.video_height)
+    fps = int(settings.video_fps)
     video_filter = (
-        "scale=1080:1920:force_original_aspect_ratio=increase,"
-        "crop=1080:1920,setsar=1,fps=30,"
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+        f"crop={width}:{height},setsar=1,fps={fps},"
         "eq=contrast=1.08:saturation=1.08:brightness=-0.035,"
         "vignette=PI/5:0.45,format=yuv420p"
     )
@@ -122,7 +125,7 @@ def _render_segment(ffmpeg: str, clip_path: Path, duration_seconds: float, segme
             "-preset",
             "fast",
             "-b:v",
-            "14000k",
+            settings.video_bitrate,
             str(segment_path),
         ],
         check=True,
@@ -173,7 +176,7 @@ def _render_final_video(
             "-c:v",
             "libx264",
             "-preset",
-            "medium",
+            "fast",
             "-b:v",
             settings.video_bitrate,
             "-c:a",

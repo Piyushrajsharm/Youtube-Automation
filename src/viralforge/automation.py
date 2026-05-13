@@ -8,6 +8,7 @@ from .config import Settings
 from .growth import finalize_metadata
 from .llm import NvidiaChatClient
 from .models import ComplianceReport, TrendItem, UploadMetadata, VideoPlan
+from .pexels_demo_renderer import render_pexels_demo
 from .policy import evaluate_plan
 from .renderer import finalize_raw_render, render_video
 from .research import build_research_bundle
@@ -84,7 +85,7 @@ def run_once(
 
     rendered: dict[str, Path | None] = {"video": None, "thumbnail": None, "audio": None}
     if render:
-        rendered = render_video(plan, output_dir, settings)
+        rendered = _render_for_automation(plan, output_dir, settings)
         write_json(output_dir / "rendered.json", rendered)
 
     upload_result: dict[str, Any] | None = None
@@ -110,6 +111,19 @@ def run_once(
     _remember_package(settings, package)
     write_json(output_dir / "automation_package.json", package.to_dict())
     return package
+
+
+def _render_for_automation(plan: VideoPlan, output_dir: Path, settings: Settings) -> dict[str, Path | None]:
+    if bool(getattr(settings, "pexels_enabled", False) and getattr(settings, "pexels_video_enabled", False)):
+        if not getattr(settings, "pexels_api_key", ""):
+            raise RuntimeError("PEXELS_ENABLED is true, but PEXELS_API_KEY is not configured.")
+        try:
+            rendered = render_pexels_demo(plan, output_dir, settings)
+            return {key: Path(str(value)) if value else None for key, value in rendered.items()}
+        except Exception as exc:
+            write_json(output_dir / "pexels_render_error.json", {"error": f"{type(exc).__name__}: {exc}"})
+            raise RuntimeError("Pexels render failed; refusing to upload a non-Pexels fallback video.") from exc
+    return render_video(plan, output_dir, settings)
 
 
 def choose_fresh_topic(trends: list[TrendItem], state: dict[str, Any]) -> str:
