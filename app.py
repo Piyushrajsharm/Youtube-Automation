@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 
 from viralforge.config import load_settings, load_strategy
-from viralforge.secure_bot import SecureTelegramBot
+from viralforge.secure_bot import OWNER, SecureTelegramBot
 
 
 BOT_RESTART_DELAY_SECONDS = 30
@@ -111,6 +111,21 @@ def _handle_telegram_update(update: dict[str, Any]) -> None:
         print(traceback.format_exc(), flush=True)
 
 
+def _require_admin_secret(request: Request) -> None:
+    expected_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
+    received_secret = request.headers.get("X-ViralForge-Admin-Secret", "")
+    if not expected_secret or received_secret != expected_secret:
+        raise HTTPException(status_code=403, detail="Invalid admin secret.")
+
+
+def _bot_or_503() -> SecureTelegramBot:
+    with _bot_lock:
+        bot = _bot
+    if bot is None:
+        raise HTTPException(status_code=503, detail="Bot is not ready.")
+    return bot
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("ViralForge Space booting. Launching secure bot supervisor.", flush=True)
@@ -130,6 +145,35 @@ def root() -> dict[str, Any]:
 @app.get("/health")
 def health() -> dict[str, Any]:
     return _health_payload()
+
+
+@app.get("/control/jobs")
+def control_jobs(request: Request) -> dict[str, Any]:
+    _require_admin_secret(request)
+    bot = _bot_or_503()
+    state = bot.store.load()
+    return {
+        "jobs": bot.store.recent_jobs(12),
+        "usage": state.get("usage", {}),
+        "autopilot": bool(state.get("autopilot")),
+        "queue_size": bot.jobs.qsize(),
+    }
+
+
+@app.post("/control/render-upload")
+async def control_render_upload(request: Request) -> dict[str, Any]:
+    _require_admin_secret(request)
+    bot = _bot_or_503()
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    topic = str(payload.get("topic") or "").strip()
+    owner_id = int(bot.settings.telegram_owner_chat_ids[0]) if bot.settings.telegram_owner_chat_ids else 0
+    job = bot.store.create_job(job_type="render_upload", topic=topic, chat_id=owner_id, role=OWNER)
+    bot.jobs.put(job["id"])
+    print(f"Direct control queued render_upload job {job['id']} topic={topic or 'auto trend'}", flush=True)
+    return {"ok": True, "job": job}
 
 
 @app.post("/telegram/webhook")
