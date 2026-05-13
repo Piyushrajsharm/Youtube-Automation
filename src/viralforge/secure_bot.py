@@ -523,6 +523,11 @@ class SecureTelegramBot:
                     "title": package.plan.metadata.title,
                     "hashtags": package.plan.metadata.hashtags,
                 }
+                if package.rendered.get("cloud_status") == "success":
+                    self.store.update_job(job_id, status="cloud_rendering", **updates)
+                    self._safe_send_message(chat_id, f"🚀 **Cloud Render Triggered!**\n\nGitHub Action is now rendering your video. You will receive it on Telegram once complete.\n\nJob ID: `{job_id}`")
+                    return
+
                 if job_type == "render_upload":
                     if self.settings.secure_bot_require_upload_approval:
                         updates["status"] = "awaiting_approval"

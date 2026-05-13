@@ -1,0 +1,22 @@
+{
+  "name": "viralforge-remotion",
+  "version": "1.0.0",
+  "description": "Remotion video template for ViralForge",
+  "main": "index.js",
+  "scripts": {
+    "start": "remotion preview src/index.tsx",
+    "build": "remotion render src/index.tsx Video out/video.mp4",
+    "render": "remotion render src/index.tsx Video out/video.mp4 --props=video_plan.json"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.0",
+    "remotion": "4.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.0",
+    "@types/web": "0.0.115",
+    "typescript": "5.1.6"
+  }
+}

@@ -103,6 +103,10 @@ class Settings:
     advanced_rendering: bool
     cinematic_intensity: float
     particle_density: float
+    creatomate_api_key: str
+    github_token: str
+    github_repo: str
+    render_mode: str
 
     @property
     def outputs_dir(self) -> Path:
@@ -209,6 +213,10 @@ def load_settings() -> Settings:
         advanced_rendering=truthy(os.getenv("ADVANCED_RENDERING"), default=True),
         cinematic_intensity=float(os.getenv("CINEMATIC_INTENSITY", "0.85")),
         particle_density=float(os.getenv("PARTICLE_DENSITY", "1.0")),
+        creatomate_api_key=os.getenv("CREATOMATE_API_KEY", "").strip(),
+        github_token=os.getenv("GITHUB_TOKEN", "").strip(),
+        github_repo=os.getenv("GITHUB_REPO", "").strip(),
+        render_mode=os.getenv("RENDER_MODE", "local").strip().lower(),
     )
 
 

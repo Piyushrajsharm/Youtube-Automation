@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import Settings
+from .cloud_adapter import trigger_cloud_render
 from .growth import finalize_metadata
 from .llm import NvidiaChatClient
 from .models import ComplianceReport, TrendItem, UploadMetadata, VideoPlan
@@ -114,6 +115,14 @@ def run_once(
 
 
 def _render_for_automation(plan: VideoPlan, output_dir: Path, settings: Settings) -> dict[str, Path | None]:
+    if settings.render_mode != "local":
+        result = trigger_cloud_render(plan, settings, output_dir)
+        if result.get("status") == "success":
+            # If cloud render is just a trigger (like GitHub), we don't have a video path yet
+            return {"video": None, "cloud_status": result.get("status"), "message": result.get("message")}
+        else:
+            raise RuntimeError(f"Cloud render trigger failed: {result.get('message')}")
+
     if bool(getattr(settings, "pexels_enabled", False) and getattr(settings, "pexels_video_enabled", False)):
         if not getattr(settings, "pexels_api_key", ""):
             raise RuntimeError("PEXELS_ENABLED is true, but PEXELS_API_KEY is not configured.")

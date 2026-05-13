@@ -1,0 +1,41 @@
+name: ViralForge Cloud Render
+
+on:
+  repository_dispatch:
+    types: [render_video]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: |
+          cd remotion
+          npm install
+
+      - name: Prepare Plan
+        run: |
+          echo '${{ json(github.event.client_payload.plan_json) }}' > remotion/video_plan.json
+
+      - name: Render Video
+        run: |
+          cd remotion
+          npx remotion render src/index.tsx Video out/video.mp4 --props=video_plan.json
+
+      - name: Send to Telegram
+        run: |
+          curl -v -F "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+               -F "video=@remotion/out/video.mp4" \
+               -F "caption=✅ Cloud Render Complete: ${{ github.event.client_payload.topic }}" \
+               "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendVideo"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
