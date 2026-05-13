@@ -5,6 +5,7 @@ description = "Trend-aware original animated YouTube video automation with copyr
 requires-python = ">=3.11"
 dependencies = [
   "beautifulsoup4>=4.12.3",
+  "fastapi>=0.115.0",
   "feedparser>=6.0.11",
   "google-api-python-client>=2.160.0",
   "google-auth-httplib2>=0.2.0",
@@ -17,7 +18,8 @@ dependencies = [
   "python-dotenv>=1.0.1",
   "requests>=2.32.3",
   "rich>=13.9.0",
-  "tenacity>=9.0.0"
+  "tenacity>=9.0.0",
+  "uvicorn>=0.30.0"
 ]
 
 [project.scripts]

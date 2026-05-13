@@ -11,5 +11,4 @@ if (-not (Test-Path ".env")) {
   Copy-Item ".env.example" ".env"
 }
 
-Write-Host "Setup complete. Edit .env, then run: .\.venv\Scripts\viralforge discover"
-
+Write-Host "Setup complete. Edit .env, then run: .\.venv\Scripts\python.exe -m viralforge.cli discover"

@@ -226,7 +226,7 @@ For true 24/7 operation while your laptop is shut down, deploy this project on a
 Create a private Telegram control bot so you can trigger automation from your phone:
 
 ```powershell
-.\.venv\Scripts\viralforge telegram-bot
+.\.venv\Scripts\python.exe -m viralforge.cli telegram-bot
 ```
 
 Available commands include `/discover`, `/plan [topic]`, `/run [topic]`, `/run_upload [topic]`, `/upload_latest`, `/status`, and `/id`.
@@ -236,10 +236,31 @@ Setup guide: [docs/TELEGRAM_CONTROL.md](docs/TELEGRAM_CONTROL.md).
 For the separate production-grade bot with roles, queued jobs, approval buttons, rate limits, and audit logs, use:
 
 ```powershell
-.\.venv\Scripts\viralforge secure-bot
+.\.venv\Scripts\python.exe -m viralforge.cli secure-bot
 ```
 
 Secure bot guide: [docs/SECURE_BOT.md](docs/SECURE_BOT.md).
+
+## Hugging Face Space Deployment
+
+This repository is configured as a Docker Space. The Space starts a FastAPI health endpoint and launches exactly one secure Telegram bot supervisor in the background.
+
+Set these Hugging Face Space Secrets before relying on the hosted bot:
+
+```text
+TELEGRAM_BOT_TOKEN
+TELEGRAM_OWNER_CHAT_IDS
+NVIDIA_API_KEY
+PEXELS_API_KEY
+YOUTUBE_CLIENT_SECRETS_JSON
+YOUTUBE_TOKEN_JSON
+YOUTUBE_UPLOAD_ENABLED=true
+SECURE_BOT_REQUIRE_UPLOAD_APPROVAL=false
+```
+
+Use `YOUTUBE_CLIENT_SECRETS_JSON` for the full contents of `credentials/client_secret.json` and `YOUTUBE_TOKEN_JSON` for the full contents of `credentials/youtube_token.json`. Do not commit either JSON file.
+
+After deploying to the Space, stop any local `secure-bot` process. Telegram long polling must have only one active bot instance, otherwise Telegram returns `409 Conflict` and messages can go to the wrong process.
 
 ## YouTube Upload Setup
 
@@ -249,13 +270,13 @@ Secure bot guide: [docs/SECURE_BOT.md](docs/SECURE_BOT.md).
 4. Link OAuth once:
 
 ```powershell
-.\.venv\Scripts\viralforge youtube-auth
+.\.venv\Scripts\python.exe -m viralforge.cli youtube-auth
 ```
 
 5. Create and upload a private video:
 
 ```powershell
-.\.venv\Scripts\viralforge run --upload
+.\.venv\Scripts\python.exe -m viralforge.cli run --upload
 ```
 
 The OAuth flow opens a browser for consent and stores `credentials/youtube_token.json`.

@@ -24,4 +24,5 @@ if ($NoRender) {
   $argsList += "--no-render"
 }
 
-.\.venv\Scripts\viralforge @argsList
+$env:PYTHONPATH = Join-Path $root "src"
+.\.venv\Scripts\python.exe -m viralforge.cli @argsList

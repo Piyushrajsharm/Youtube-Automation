@@ -9,7 +9,7 @@ from .growth import finalize_metadata
 from .llm import NvidiaChatClient
 from .models import ComplianceReport, TrendItem, UploadMetadata, VideoPlan
 from .policy import evaluate_plan
-from .renderer import render_video
+from .renderer import finalize_raw_render, render_video
 from .research import build_research_bundle
 from .scriptwriter import create_video_plan
 from .trends import collect_news_for_query, collect_trends
@@ -178,6 +178,51 @@ def _remember_package(settings: Settings, package: AutomationPackage) -> None:
     write_json(settings.outputs_dir / AUTOMATION_STATE_FILE, state)
 
 
+def _remember_recovered_render(settings: Settings, output_dir: Path, video_path: Path, metadata_path: Path) -> None:
+    ensure_dir(settings.outputs_dir)
+    state = _load_state(settings)
+    history = state.setdefault("history", [])
+    if not isinstance(history, list):
+        history = []
+        state["history"] = history
+
+    try:
+        metadata = UploadMetadata.from_dict(read_json(metadata_path))
+    except Exception:
+        metadata = UploadMetadata(title=output_dir.name, description="", hashtags=[], tags=[])
+
+    topic = metadata.title
+    plan_path = output_dir / "plan.json"
+    if plan_path.exists():
+        try:
+            topic = str(read_json(plan_path).get("topic") or topic)
+        except Exception:
+            pass
+
+    entry = {
+        "created_at": output_dir.name[:15],
+        "topic": topic,
+        "output_dir": str(output_dir),
+        "video": str(video_path),
+        "uploaded": False,
+        "youtube_url": None,
+        "hashtags": metadata.hashtags,
+    }
+    for item in history:
+        if str(item.get("output_dir") or "") == str(output_dir):
+            if item.get("uploaded"):
+                entry["uploaded"] = True
+                entry["youtube_url"] = item.get("youtube_url")
+            item.update(entry)
+            break
+    else:
+        history.insert(0, entry)
+
+    history.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    state["history"] = history[:100]
+    write_json(settings.outputs_dir / AUTOMATION_STATE_FILE, state)
+
+
 def upload_existing_package(
     settings: Settings,
     video_path: Path,
@@ -186,3 +231,46 @@ def upload_existing_package(
     metadata = UploadMetadata.from_dict(read_json(metadata_path))
     settings.youtube_upload_enabled = True
     return upload_video(video_path, metadata, settings)
+
+
+def recover_incomplete_render_packages(settings: Settings) -> list[dict[str, str]]:
+    """Repair output folders where rendering produced raw MP4 output but packaging was interrupted."""
+    if not settings.outputs_dir.exists():
+        return []
+
+    recovered: list[dict[str, str]] = []
+    output_dirs = [path for path in settings.outputs_dir.iterdir() if path.is_dir()]
+    for output_dir in sorted(output_dirs, key=lambda path: path.stat().st_mtime, reverse=True):
+        metadata_path = output_dir / "metadata.json"
+        if not metadata_path.exists():
+            continue
+
+        had_video = (output_dir / "video.mp4").exists()
+        had_rendered_json = (output_dir / "rendered.json").exists()
+        video_path = finalize_raw_render(output_dir, settings)
+        if not video_path:
+            continue
+
+        rendered_path = output_dir / "rendered.json"
+        if not rendered_path.exists():
+            thumbnail_path = output_dir / "thumbnail.jpg"
+            contact_sheet_path = output_dir / "contact_sheet.jpg"
+            audio_path = output_dir / "narration_timed.wav"
+            music_path = output_dir / "original_music.wav"
+            sfx_path = output_dir / "sound_design.wav"
+            write_json(
+                rendered_path,
+                {
+                    "video": video_path,
+                    "thumbnail": thumbnail_path if thumbnail_path.exists() else None,
+                    "contact_sheet": contact_sheet_path if contact_sheet_path.exists() else None,
+                    "audio": audio_path if audio_path.exists() else None,
+                    "music": music_path if music_path.exists() else None,
+                    "sfx": sfx_path if sfx_path.exists() else None,
+                },
+            )
+
+        _remember_recovered_render(settings, output_dir, video_path, metadata_path)
+        if not had_video or not had_rendered_json:
+            recovered.append({"output_dir": str(output_dir), "video": str(video_path), "metadata": str(metadata_path)})
+    return recovered

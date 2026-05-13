@@ -1019,6 +1019,22 @@ def _normalize_video_loudness(raw_path: Path, output_path: Path, settings: Setti
         shutil.move(str(raw_path), str(output_path))
 
 
+def finalize_raw_render(output_dir: Path, settings: Settings) -> Path | None:
+    """Promote a stranded raw render into the canonical uploadable video."""
+    video_path = output_dir / "video.mp4"
+    if video_path.exists() and video_path.stat().st_size > 0:
+        return video_path
+
+    raw_path = output_dir / "video_raw.mp4"
+    if not raw_path.exists() or raw_path.stat().st_size <= 0:
+        return None
+
+    _normalize_video_loudness(raw_path, video_path, settings)
+    if video_path.exists() and video_path.stat().st_size > 0:
+        return video_path
+    return None
+
+
 def _draw_light_sweep(
     draw: ImageDraw.ImageDraw,
     width: int,

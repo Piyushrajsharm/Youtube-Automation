@@ -13,7 +13,7 @@ from typing import Any
 
 import requests
 
-from .automation import run_once, upload_existing_package
+from .automation import recover_incomplete_render_packages, run_once, upload_existing_package
 from .config import Settings, load_strategy
 from .trends import collect_trends
 from .utils import ensure_dir, read_json, write_json, extract_json_object
@@ -158,6 +158,9 @@ class SecureTelegramBot:
         self._consecutive_errors = 0
         self._instance_socket: socket.socket | None = None
         self._acquire_single_instance_lock()
+        recovered = recover_incomplete_render_packages(settings)
+        if recovered:
+            print(f"Recovered {len(recovered)} incomplete rendered package(s).", flush=True)
         self._recover_stuck_jobs()
 
     def run_forever(self) -> None:
@@ -610,6 +613,7 @@ class SecureTelegramBot:
         self.send_message(chat_id, "Top trend candidates:\n" + "\n".join(lines))
 
     def _latest_rendered_package(self) -> tuple[Path, Path] | None:
+        recover_incomplete_render_packages(self.settings)
         state_path = self.settings.outputs_dir / "automation_state.json"
         if not state_path.exists():
             return None

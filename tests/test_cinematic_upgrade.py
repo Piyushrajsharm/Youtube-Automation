@@ -8,7 +8,7 @@ import numpy as np
 from viralforge.caption_cleaner import caption_plan_for, clean_headline
 from viralforge.depth_compositor import character_integration_for_scene, layers_for_scene
 from viralforge.broll_engine import broll_for_scene
-from viralforge.automation import choose_fresh_topic
+from viralforge.automation import choose_fresh_topic, recover_incomplete_render_packages
 from viralforge.google_video_client import _extract_video_uri
 from viralforge.google_video_adapter import _veo_prompt
 from viralforge.growth import finalize_metadata
@@ -22,6 +22,7 @@ from viralforge.shot_director import build_shot_sequence
 from viralforge.scriptwriter import fallback_plan
 from viralforge.secure_bot import ADMIN, GUEST, OWNER, VIEWER, SecureTelegramBot, split_command as secure_split_command
 from viralforge.telegram_bot import TelegramController, _split_command
+from viralforge.utils import read_json
 
 
 def _scene(scene_id: str = "scene_01", headline: str = "AI worker needs guardrails") -> ScenePlan:
@@ -216,6 +217,27 @@ class CinematicUpgradeTests(unittest.TestCase):
         state = {"history": [{"topic": "AI gadget quiz trend"}]}
         self.assertEqual(choose_fresh_topic(trends, state), "Cybersecurity news update")
 
+    def test_recover_incomplete_render_promotes_raw_video(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output_dir = root / "20260513_010203_ai-test"
+            output_dir.mkdir(parents=True)
+            (output_dir / "video_raw.mp4").write_bytes(b"not a real mp4 but enough for fallback")
+            (output_dir / "metadata.json").write_text(
+                '{"title":"AI test","description":"","hashtags":["#Tech"],"tags":[]}',
+                encoding="utf-8",
+            )
+            (output_dir / "plan.json").write_text('{"topic":"AI test"}', encoding="utf-8")
+            settings = SimpleNamespace(outputs_dir=root, audio_target_lufs=-14, audio_sample_rate=48000)
+
+            recovered = recover_incomplete_render_packages(settings)
+
+            self.assertEqual(len(recovered), 1)
+            self.assertTrue((output_dir / "video.mp4").exists())
+            self.assertTrue((output_dir / "rendered.json").exists())
+            state = read_json(root / "automation_state.json")
+            self.assertEqual(state["history"][0]["video"], str(output_dir / "video.mp4"))
+
     def test_fallback_plan_matches_quiz_topic(self):
         settings = type(
             "Settings",
@@ -273,6 +295,7 @@ class CinematicUpgradeTests(unittest.TestCase):
                 secure_bot_max_daily_renders=6,
                 secure_bot_max_daily_uploads=3,
                 secure_bot_require_upload_approval=True,
+                secure_bot_instance_lock_port=0,
                 outputs_dir=Path(tmp),
                 youtube_token_file=Path(tmp) / "youtube_token.json",
                 youtube_client_secrets=Path(tmp) / "client_secret.json",
@@ -297,6 +320,7 @@ class CinematicUpgradeTests(unittest.TestCase):
                 secure_bot_max_daily_renders=6,
                 secure_bot_max_daily_uploads=3,
                 secure_bot_require_upload_approval=True,
+                secure_bot_instance_lock_port=0,
                 outputs_dir=Path(tmp),
                 youtube_token_file=Path(tmp) / "youtube_token.json",
                 youtube_client_secrets=Path(tmp) / "client_secret.json",

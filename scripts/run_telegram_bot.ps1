@@ -5,4 +5,5 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
-.\.venv\Scripts\viralforge telegram-bot
+$env:PYTHONPATH = Join-Path $root "src"
+.\.venv\Scripts\python.exe -m viralforge.cli telegram-bot

@@ -7,7 +7,7 @@ from typing import Any
 
 import requests
 
-from .automation import run_once, upload_existing_package
+from .automation import recover_incomplete_render_packages, run_once, upload_existing_package
 from .config import Settings, load_strategy
 from .trends import collect_trends
 from .utils import read_json
@@ -145,6 +145,7 @@ class TelegramController:
         self.send_message(chat_id, f"Uploaded: {result.get('url')}")
 
     def _latest_rendered_package(self) -> tuple[Path, Path] | None:
+        recover_incomplete_render_packages(self.settings)
         state_path = self.settings.outputs_dir / "automation_state.json"
         if not state_path.exists():
             return None
