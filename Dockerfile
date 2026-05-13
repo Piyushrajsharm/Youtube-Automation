@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY --chown=user app.py ./
 COPY --chown=user assets ./assets
 COPY --chown=user config ./config
-COPY --chown=user credentials/.gitkeep ./credentials/.gitkeep
-COPY --chown=user outputs/.gitkeep ./outputs/.gitkeep
+RUN mkdir -p credentials outputs \
+    && chown -R user:user credentials outputs
 
 USER user
 
