@@ -19,7 +19,14 @@ from viralforge.nvidia_video_adapter import image_data_uri_from_frame
 from viralforge.pexels_client import _best_video_file
 from viralforge.pexels_client import PexelsClient, PexelsVideoCandidate
 from viralforge.pexels_broll_adapter import _select_fresh_candidates
-from viralforge.pexels_demo_renderer import _ass_script, _caption_groups, _queries_for_plan, render_pexels_demo
+from viralforge.pexels_demo_renderer import (
+    _ass_script,
+    _caption_groups,
+    _caption_timing,
+    _queries_for_plan,
+    _retime_scene_plans_to_voice,
+    render_pexels_demo,
+)
 from viralforge.scene_quality_checker import score_scene_quality
 from viralforge.shot_director import build_shot_sequence
 from viralforge.scriptwriter import fallback_plan
@@ -349,6 +356,17 @@ class CinematicUpgradeTests(unittest.TestCase):
                 with patch("viralforge.pexels_demo_renderer.prepare_pexels_broll", return_value=clips):
                     with self.assertRaisesRegex(RuntimeError, "avoid repeated footage"):
                         render_pexels_demo(plan, Path(tmp), settings)
+
+    def test_pexels_captions_follow_voice_timeline(self):
+        scene = _scene("scene_01")
+        scene.start_time = 10
+        scene.end_time = 16
+        _retime_scene_plans_to_voice([scene], {"scene_01": (0.4, 2.1)})
+        timings = _caption_timing(scene)
+        self.assertLess(timings[0][0], 1.0)
+        self.assertLessEqual(timings[-1][1], 2.4)
+        ass = _ass_script([scene])
+        self.assertIn("0:00:00.", ass)
 
     def test_pexels_ass_has_subscribe_and_no_source_banner(self):
         scene = _scene()

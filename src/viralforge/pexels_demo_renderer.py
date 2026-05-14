@@ -17,7 +17,7 @@ from .scene_quality_checker import check_scene_quality
 from .sfx_engine import synthesize_sfx
 from .subtitle_engine import keyword_chips
 from .retention_checker import check_retention
-from .utils import ensure_dir, write_json
+from .utils import ensure_dir, read_json, write_json
 
 
 def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) -> dict[str, str]:
@@ -36,6 +36,12 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
             f"Pexels returned {len(selected)} unique usable clips; {required_clip_count} are required to avoid repeated footage."
         )
 
+    voice_path = synthesize_voice(plan, output_dir, settings, scene_plans)
+    voice_timeline = _load_voice_timeline(output_dir)
+    if voice_timeline:
+        _retime_scene_plans_to_voice(scene_plans, voice_timeline)
+    render_duration = min(float(settings.video_duration_seconds), max(8.0, max(scene.end_time for scene in scene_plans)))
+
     write_json(output_dir / "plan.json", plan.to_dict())
     write_json(output_dir / "scene_plan.json", [scene.to_dict() for scene in scene_plans])
     write_json(output_dir / "retention.json", check_retention(scene_plans).to_dict())
@@ -43,10 +49,9 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
     write_json(output_dir / "cinematic_score.json", cinematic_score(scene_plans))
     write_json(output_dir / "skill_quality.json", check_skill_quality(scene_plans))
 
-    voice_path = synthesize_voice(plan, output_dir, settings, scene_plans)
-    music_path = synthesize_music(plan, output_dir, settings.video_duration_seconds, settings) if settings.music_enabled else None
+    music_path = synthesize_music(plan, output_dir, render_duration, settings) if settings.music_enabled else None
     sfx_path = (
-        synthesize_sfx(scene_plans, output_dir, settings.video_duration_seconds, settings.audio_sample_rate)
+        synthesize_sfx(scene_plans, output_dir, render_duration, settings.audio_sample_rate)
         if settings.sfx_enabled
         else None
     )
@@ -72,7 +77,7 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
     ass_path = output_dir / "captions.ass"
     ass_path.write_text(_ass_script(scene_plans), encoding="utf-8")
     video_path = output_dir / "video.mp4"
-    _render_final_video(ffmpeg, base_path, ass_path, video_path, voice_path, music_path, sfx_path, settings)
+    _render_final_video(ffmpeg, base_path, ass_path, video_path, voice_path, music_path, sfx_path, settings, render_duration)
 
     thumbnail_path = output_dir / "thumbnail.jpg"
     subprocess.run(
@@ -98,6 +103,42 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
     }
     write_json(output_dir / "rendered.json", rendered)
     return rendered
+
+
+def _load_voice_timeline(output_dir: Path) -> dict[str, tuple[float, float]]:
+    path = output_dir / "voice_timeline.json"
+    if not path.exists():
+        return {}
+    try:
+        data = read_json(path)
+    except Exception:
+        return {}
+    result: dict[str, tuple[float, float]] = {}
+    for item in data.get("scenes", []):
+        scene_id = str(item.get("scene_id", "")).strip()
+        if not scene_id:
+            continue
+        start = float(item.get("start", 0.0) or 0.0)
+        end = float(item.get("end", start) or start)
+        if end > start:
+            result[scene_id] = (start, end)
+    return result
+
+
+def _retime_scene_plans_to_voice(scene_plans: list[ScenePlan], voice_timeline: dict[str, tuple[float, float]]) -> None:
+    previous_end = 0.0
+    for scene in scene_plans:
+        timing = voice_timeline.get(scene.scene_id)
+        if not timing:
+            duration = max(1.2, scene.duration_seconds)
+            scene.start_time = previous_end
+            scene.end_time = previous_end + duration
+            previous_end = scene.end_time
+            continue
+        start, end = timing
+        scene.start_time = max(previous_end, start)
+        scene.end_time = max(scene.start_time + 1.1, end + 0.18)
+        previous_end = scene.end_time
 
 
 def _render_segment(ffmpeg: str, clip_path: Path, duration_seconds: float, segment_path: Path, settings: Settings) -> None:
@@ -146,6 +187,7 @@ def _render_final_video(
     music_path: Path | None,
     sfx_path: Path | None,
     settings: Settings,
+    duration_seconds: float | None = None,
 ) -> None:
     ass_filter_path = ass_path.resolve().as_posix().replace(":", r"\:")
     inputs = ["-i", str(base_path)]
@@ -153,19 +195,35 @@ def _render_final_video(
     map_args = ["-map", "[v]"]
     audio_labels: list[str] = []
     input_index = 1
-    for path, volume in ((voice_path, 1.08), (music_path, settings.music_volume), (sfx_path, 0.86)):
+    for path, kind, volume in (
+        (voice_path, "voice", 1.18),
+        (music_path, "music", min(settings.music_volume, 0.055)),
+        (sfx_path, "sfx", 0.24),
+    ):
         if path and path.exists() and path.stat().st_size > 0:
             inputs += ["-i", str(path)]
             label = f"a{input_index}"
-            filter_parts.append(f"[{input_index}:a]volume={volume}[{label}]")
+            if kind == "voice":
+                filter_parts.append(
+                    f"[{input_index}:a]highpass=f=75,lowpass=f=12500,volume={volume},aformat=channel_layouts=stereo[{label}]"
+                )
+            elif kind == "music":
+                filter_parts.append(
+                    f"[{input_index}:a]highpass=f=65,lowpass=f=2600,volume={volume},aformat=channel_layouts=stereo[{label}]"
+                )
+            else:
+                filter_parts.append(
+                    f"[{input_index}:a]highpass=f=90,lowpass=f=5200,volume={volume},aformat=channel_layouts=stereo[{label}]"
+                )
             audio_labels.append(f"[{label}]")
             input_index += 1
     if audio_labels:
         filter_parts.append(
             "".join(audio_labels)
-            + f"amix=inputs={len(audio_labels)}:duration=longest:dropout_transition=0,loudnorm=I={settings.audio_target_lufs}:TP=-1.5:LRA=9[a]"
+            + f"amix=inputs={len(audio_labels)}:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.94,loudnorm=I={settings.audio_target_lufs}:TP=-1.5:LRA=9[a]"
         )
         map_args += ["-map", "[a]"]
+    output_duration = duration_seconds or settings.video_duration_seconds
     subprocess.run(
         [
             ffmpeg,
@@ -175,7 +233,7 @@ def _render_final_video(
             ";".join(filter_parts),
             *map_args,
             "-t",
-            str(settings.video_duration_seconds),
+            f"{output_duration:.2f}",
             "-c:v",
             "libx264",
             "-preset",
@@ -236,8 +294,8 @@ def _caption_timing(scene: ScenePlan) -> list[tuple[float, float, str]]:
     groups = _caption_groups(scene.narration)
     if not groups:
         return []
-    start = scene.start_time + 1.05
-    end = max(start + 0.7, scene.end_time - 0.35)
+    start = scene.start_time + 0.22
+    end = max(start + 0.7, scene.end_time - 0.08)
     step = max(0.42, (end - start) / len(groups))
     timings: list[tuple[float, float, str]] = []
     for index, group in enumerate(groups):

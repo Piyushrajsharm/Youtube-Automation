@@ -37,7 +37,7 @@ def synthesize_sfx(scene_plans: list[ScenePlan], output_dir: Path, duration: flo
             moment = scene.start_time + float(edit_event.get("time", 0.0))
             if name:
                 _add_sfx(audio, moment, sample_rate, _retention_to_sfx(name), scene.music_intensity)
-    audio = np.tanh(audio * 1.2)
+    audio = np.tanh(audio * 0.9)
     stereo = np.stack([audio * 0.95, audio], axis=1)
     pcm = np.int16(np.clip(stereo, -1, 1) * 32767)
     with wave.open(str(path), "wb") as handle:
@@ -116,7 +116,7 @@ def _whoosh(audio: np.ndarray, start: int, sample_rate: int, seconds: float, int
     x = np.linspace(0, 1, length, dtype=np.float32)
     noise = rng.uniform(-1, 1, length).astype(np.float32)
     sweep = np.sin(2 * math.pi * (220 + 920 * x) * x * seconds)
-    audio[start : start + length] += (0.045 + intensity * 0.035) * (noise * 0.35 + sweep * 0.65) * np.sin(math.pi * x)
+    audio[start : start + length] += (0.024 + intensity * 0.018) * (noise * 0.42 + sweep * 0.38) * np.sin(math.pi * x)
 
 
 def _click(audio: np.ndarray, start: int, sample_rate: int, intensity: float) -> None:
@@ -125,7 +125,7 @@ def _click(audio: np.ndarray, start: int, sample_rate: int, intensity: float) ->
         return
     x = np.arange(length, dtype=np.float32) / sample_rate
     signal = np.sin(2 * math.pi * 1300 * x) * np.exp(-x * 60)
-    audio[start : start + length] += (0.08 + intensity * 0.04) * signal
+    audio[start : start + length] += (0.045 + intensity * 0.025) * signal
 
 
 def _glitch(audio: np.ndarray, start: int, sample_rate: int, intensity: float) -> None:
@@ -135,4 +135,4 @@ def _glitch(audio: np.ndarray, start: int, sample_rate: int, intensity: float) -
     rng = np.random.default_rng(start + 44)
     signal = rng.uniform(-1, 1, length).astype(np.float32)
     gate = (np.arange(length) // max(1, int(sample_rate * 0.012))) % 2
-    audio[start : start + length] += (0.05 + intensity * 0.05) * signal * gate
+    audio[start : start + length] += (0.024 + intensity * 0.024) * signal * gate

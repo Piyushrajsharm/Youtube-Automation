@@ -305,6 +305,7 @@ async def _edge_tts_scene_timeline(
 
     audio_clips = []
     opened = []
+    timeline: list[dict[str, float | str]] = []
     total_duration = max(scene.end_time for scene in scene_plans)
     try:
         cursor = 0.04
@@ -315,16 +316,29 @@ async def _edge_tts_scene_timeline(
             if cursor >= total_duration - 0.1:
                 break
             available = max(0.1, total_duration - cursor)
-            clip = source.subclip(0, min(source.duration, available))
+            clip_duration = min(source.duration, available)
+            clip = source.subclip(0, clip_duration)
             clip = clip.set_start(cursor).volumex(1.05)
             opened.append(clip)
             audio_clips.append(clip)
-            cursor += min(source.duration, available) + speech_gap
+            timeline.append(
+                {
+                    "scene_id": scene.scene_id,
+                    "start": round(cursor, 3),
+                    "end": round(cursor + clip_duration, 3),
+                    "duration": round(clip_duration, 3),
+                }
+            )
+            cursor += clip_duration + speech_gap
         CompositeAudioClip(audio_clips).set_duration(total_duration).write_audiofile(
             str(output_path),
             fps=settings.audio_sample_rate,
             codec="pcm_s16le",
             logger=None,
+        )
+        write_json(
+            output_dir / "voice_timeline.json",
+            {"total_duration": round(total_duration, 3), "speech_gap": speech_gap, "scenes": timeline},
         )
     finally:
         for clip in opened:
@@ -426,8 +440,8 @@ def synthesize_music(plan: VideoPlan, output_dir: Path, duration: float, setting
         if beat_index % 4 == 3:
             _add_riser(audio, beat_start, sample_rate)
 
-    audio += 0.012 * np.sin(2 * np.pi * (key * 4) * t) * (0.5 + 0.5 * np.sin(2 * np.pi * t / 8))
-    audio = np.tanh(audio * 1.4)
+    audio += 0.006 * np.sin(2 * np.pi * (key * 0.5) * t) * (0.5 + 0.5 * np.sin(2 * np.pi * t / 8))
+    audio = np.tanh(audio * 1.15)
     stereo = np.stack([audio * 0.92, audio], axis=1)
     pcm = np.int16(np.clip(stereo, -1, 1) * 32767)
     with wave.open(str(music_path), "wb") as handle:
