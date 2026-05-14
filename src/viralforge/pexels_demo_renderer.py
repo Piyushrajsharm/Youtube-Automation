@@ -24,7 +24,7 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
     ensure_dir(output_dir)
     segments_dir = ensure_dir(output_dir / "segments")
     scene_plans = create_scene_plan(plan, settings.video_duration_seconds)
-    required_clip_count = min(len(scene_plans), max(settings.pexels_max_clips, 6), 8)
+    required_clip_count = len(scene_plans)
     selected = prepare_pexels_broll(
         output_dir,
         settings,

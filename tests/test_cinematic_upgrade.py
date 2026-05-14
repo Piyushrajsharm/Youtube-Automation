@@ -311,7 +311,7 @@ class CinematicUpgradeTests(unittest.TestCase):
         self.assertIn("science laboratory technology", _queries_for_plan(science_plan))
 
     def test_pexels_renderer_rejects_underfilled_clip_pool(self):
-        scenes = [_scene(f"scene_{index:02d}") for index in range(6)]
+        scenes = [_scene(f"scene_{index:02d}") for index in range(7)]
         for index, scene in enumerate(scenes):
             scene.start_time = index * 4
             scene.end_time = index * 4 + 4
@@ -333,14 +333,14 @@ class CinematicUpgradeTests(unittest.TestCase):
                 download_height=1920,
                 local_path=Path(f"clip_{index}.mp4"),
             )
-            for index in range(5)
+            for index in range(6)
         ]
         plan = VideoPlan(
             topic="AI creator workflow",
             angle="Creators use AI tools.",
             audience="tech viewers",
             title="AI creator workflow",
-            scenes=[Scene("Line", "Headline", "creator desk", 4) for _ in range(6)],
+            scenes=[Scene("Line", "Headline", "creator desk", 4) for _ in range(7)],
             metadata=UploadMetadata(title="", description="", hashtags=[], tags=[]),
         )
         settings = SimpleNamespace(pexels_max_clips=4, video_duration_seconds=24)
