@@ -91,20 +91,24 @@ def prepare_pexels_broll(
             page_offset=_page_offset(output_dir),
             page_span=4,
         )
-        selected = _select_fresh_candidates(ranked_candidates, recent_ids, target_count)
+        candidate_pool = _select_fresh_candidates(ranked_candidates, recent_ids, ranked_limit)
         report["searches"] = searches
         report["freshness"]["ranked_candidate_count"] = len(ranked_candidates)
         report["freshness"]["fresh_candidate_count"] = len([item for item in ranked_candidates if item.id not in recent_ids])
-        report["selected_count"] = len(selected)
+        report["selected_count"] = 0
         downloaded = 0
-        for candidate in selected:
+        selected_with_files: list[PexelsVideoCandidate] = []
+        for candidate in candidate_pool:
+            if len(selected_with_files) >= target_count:
+                break
             try:
                 client.download_video(candidate, clips_dir)
                 downloaded += 1
+                if candidate.local_path:
+                    selected_with_files.append(candidate)
             except PexelsProviderError as exc:
                 report["errors"].append(str(exc))
         report["downloaded_count"] = downloaded
-        selected_with_files = [candidate for candidate in selected if candidate.local_path]
         if len(selected_with_files) < 2:
             cached = _cached_pexels_candidates(clips_dir, target_count)
             if cached:

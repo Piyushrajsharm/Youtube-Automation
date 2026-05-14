@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import numpy as np
 
@@ -18,7 +19,7 @@ from viralforge.nvidia_video_adapter import image_data_uri_from_frame
 from viralforge.pexels_client import _best_video_file
 from viralforge.pexels_client import PexelsClient, PexelsVideoCandidate
 from viralforge.pexels_broll_adapter import _select_fresh_candidates
-from viralforge.pexels_demo_renderer import _ass_script, _caption_groups, _queries_for_plan
+from viralforge.pexels_demo_renderer import _ass_script, _caption_groups, _queries_for_plan, render_pexels_demo
 from viralforge.scene_quality_checker import score_scene_quality
 from viralforge.shot_director import build_shot_sequence
 from viralforge.scriptwriter import fallback_plan
@@ -277,6 +278,46 @@ class CinematicUpgradeTests(unittest.TestCase):
         self.assertNotEqual(_queries_for_plan(creator_plan)[:3], _queries_for_plan(science_plan)[:3])
         self.assertIn("content creator workspace", _queries_for_plan(creator_plan))
         self.assertIn("science laboratory technology", _queries_for_plan(science_plan))
+
+    def test_pexels_renderer_rejects_underfilled_clip_pool(self):
+        scenes = [_scene(f"scene_{index:02d}") for index in range(6)]
+        for index, scene in enumerate(scenes):
+            scene.start_time = index * 4
+            scene.end_time = index * 4 + 4
+        clips = [
+            PexelsVideoCandidate(
+                id=index,
+                url="",
+                image="",
+                duration=10,
+                width=1080,
+                height=1920,
+                user_name="Pexels",
+                user_url="",
+                query="video editor computer",
+                score=10,
+                download_url="",
+                download_quality="hd",
+                download_width=1080,
+                download_height=1920,
+                local_path=Path(f"clip_{index}.mp4"),
+            )
+            for index in range(5)
+        ]
+        plan = VideoPlan(
+            topic="AI creator workflow",
+            angle="Creators use AI tools.",
+            audience="tech viewers",
+            title="AI creator workflow",
+            scenes=[Scene("Line", "Headline", "creator desk", 4) for _ in range(6)],
+            metadata=UploadMetadata(title="", description="", hashtags=[], tags=[]),
+        )
+        settings = SimpleNamespace(pexels_max_clips=4, video_duration_seconds=24)
+        with TemporaryDirectory() as tmp:
+            with patch("viralforge.pexels_demo_renderer.create_scene_plan", return_value=scenes):
+                with patch("viralforge.pexels_demo_renderer.prepare_pexels_broll", return_value=clips):
+                    with self.assertRaisesRegex(RuntimeError, "avoid repeated footage"):
+                        render_pexels_demo(plan, Path(tmp), settings)
 
     def test_pexels_ass_has_subscribe_and_no_source_banner(self):
         scene = _scene()

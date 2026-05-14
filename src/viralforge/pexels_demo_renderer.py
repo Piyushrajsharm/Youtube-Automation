@@ -24,14 +24,17 @@ def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) ->
     ensure_dir(output_dir)
     segments_dir = ensure_dir(output_dir / "segments")
     scene_plans = create_scene_plan(plan, settings.video_duration_seconds)
+    required_clip_count = min(len(scene_plans), max(settings.pexels_max_clips, 6), 8)
     selected = prepare_pexels_broll(
         output_dir,
         settings,
         queries=_queries_for_plan(plan),
-        max_clips=max(settings.pexels_max_clips, min(len(scene_plans), 6)),
+        max_clips=required_clip_count,
     )
-    if len(selected) < 2:
-        raise RuntimeError("Pexels did not return enough usable portrait clips for the demo render.")
+    if len(selected) < required_clip_count:
+        raise RuntimeError(
+            f"Pexels returned {len(selected)} unique usable clips; {required_clip_count} are required to avoid repeated footage."
+        )
 
     write_json(output_dir / "plan.json", plan.to_dict())
     write_json(output_dir / "scene_plan.json", [scene.to_dict() for scene in scene_plans])
