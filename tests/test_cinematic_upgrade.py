@@ -198,7 +198,7 @@ class CinematicUpgradeTests(unittest.TestCase):
                 duration=10,
                 width=1080,
                 height=1920,
-                user_name="Pexels",
+                user_name=f"Creator {index}",
                 user_url="",
                 query=query,
                 score=20 - index,
@@ -220,6 +220,37 @@ class CinematicUpgradeTests(unittest.TestCase):
         ]
         selected = _select_fresh_candidates(candidates, set(), 4)
         self.assertGreaterEqual(len({candidate.query for candidate in selected}), 4)
+
+    def test_pexels_selection_prefers_different_creators(self):
+        candidates = [
+            PexelsVideoCandidate(
+                id=index,
+                url="",
+                image="",
+                duration=10,
+                width=1080,
+                height=1920,
+                user_name=user,
+                user_url="",
+                query=query,
+                score=20 - index,
+                download_url="",
+                download_quality="hd",
+                download_width=1080,
+                download_height=1920,
+            )
+            for index, (user, query) in enumerate(
+                [
+                    ("Same Creator", "creator workspace"),
+                    ("Same Creator", "creator workspace"),
+                    ("Different Creator A", "video editor computer"),
+                    ("Different Creator B", "podcast studio technology"),
+                ],
+                start=1,
+            )
+        ]
+        selected = _select_fresh_candidates(candidates, set(), 3)
+        self.assertEqual(len({candidate.user_name for candidate in selected}), 3)
 
     def test_pexels_search_continues_after_query_timeout(self):
         class FakePexelsClient(PexelsClient):

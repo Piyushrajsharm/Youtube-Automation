@@ -160,8 +160,9 @@ def _select_fresh_candidates(
     selected: list[PexelsVideoCandidate] = []
     selected_ids: set[int] = set()
     query_counts: dict[str, int] = {}
+    user_counts: dict[str, int] = {}
 
-    def add_from(pool: list[PexelsVideoCandidate], *, query_cap: int | None) -> None:
+    def add_from(pool: list[PexelsVideoCandidate], *, query_cap: int | None, user_cap: int | None) -> None:
         for candidate in pool:
             if len(selected) >= max_items:
                 return
@@ -169,17 +170,23 @@ def _select_fresh_candidates(
                 continue
             if query_cap is not None and query_counts.get(candidate.query, 0) >= query_cap:
                 continue
+            user_key = candidate.user_name.strip().lower() or candidate.user_url.strip().lower()
+            if user_cap is not None and user_key and user_counts.get(user_key, 0) >= user_cap:
+                continue
             selected.append(candidate)
             selected_ids.add(candidate.id)
             query_counts[candidate.query] = query_counts.get(candidate.query, 0) + 1
+            if user_key:
+                user_counts[user_key] = user_counts.get(user_key, 0) + 1
 
     fresh = [candidate for candidate in candidates if candidate.id not in recent_ids]
     reused = [candidate for candidate in candidates if candidate.id in recent_ids]
-    add_from(fresh, query_cap=1)
-    add_from(fresh, query_cap=2)
-    add_from(fresh, query_cap=None)
-    add_from(reused, query_cap=1)
-    add_from(reused, query_cap=None)
+    add_from(fresh, query_cap=1, user_cap=1)
+    add_from(fresh, query_cap=2, user_cap=1)
+    add_from(fresh, query_cap=2, user_cap=2)
+    add_from(fresh, query_cap=None, user_cap=None)
+    add_from(reused, query_cap=1, user_cap=1)
+    add_from(reused, query_cap=None, user_cap=None)
     return selected[:max_items]
 
 
