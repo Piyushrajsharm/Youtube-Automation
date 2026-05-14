@@ -91,7 +91,7 @@ class PexelsClient:
             f"{self.base_url}/videos/search",
             headers={"Authorization": self.settings.pexels_api_key},
             params=params,
-            timeout=60,
+            timeout=20,
         )
         if response.status_code >= 400:
             raise PexelsProviderError(_provider_error(response), status_code=response.status_code)
@@ -103,12 +103,29 @@ class PexelsClient:
         *,
         per_query: int = 12,
         max_items: int = 6,
+        page_offset: int = 0,
+        page_span: int = 3,
     ) -> tuple[list[PexelsVideoCandidate], list[dict[str, Any]]]:
         seen: set[int] = set()
         candidates: list[PexelsVideoCandidate] = []
         search_reports: list[dict[str, Any]] = []
+        page_span = max(1, int(page_span))
         for query_index, query in enumerate(queries):
-            data = self.search_videos(query, per_page=per_query)
+            page = 1 + ((max(0, page_offset) + query_index) % page_span)
+            try:
+                data = self.search_videos(query, per_page=per_query, page=page)
+            except Exception as exc:
+                search_reports.append(
+                    {
+                        "query": query,
+                        "total_results": None,
+                        "returned": 0,
+                        "page": page,
+                        "per_page": per_query,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
+                continue
             videos = data.get("videos", [])
             search_reports.append(
                 {

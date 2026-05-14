@@ -23,16 +23,16 @@ from .utils import ensure_dir, write_json
 def render_pexels_demo(plan: VideoPlan, output_dir: Path, settings: Settings) -> dict[str, str]:
     ensure_dir(output_dir)
     segments_dir = ensure_dir(output_dir / "segments")
+    scene_plans = create_scene_plan(plan, settings.video_duration_seconds)
     selected = prepare_pexels_broll(
         output_dir,
         settings,
-        queries=DEFAULT_PEXELS_QUERIES,
-        max_clips=settings.pexels_max_clips,
+        queries=_queries_for_plan(plan),
+        max_clips=max(settings.pexels_max_clips, min(len(scene_plans), 6)),
     )
     if len(selected) < 2:
         raise RuntimeError("Pexels did not return enough usable portrait clips for the demo render.")
 
-    scene_plans = create_scene_plan(plan, settings.video_duration_seconds)
     write_json(output_dir / "plan.json", plan.to_dict())
     write_json(output_dir / "scene_plan.json", [scene.to_dict() for scene in scene_plans])
     write_json(output_dir / "retention.json", check_retention(scene_plans).to_dict())
@@ -267,6 +267,83 @@ def _caption_groups(text: str) -> list[str]:
                 groups.append(" ".join(group_words))
             cursor += take
     return groups[:7]
+
+
+def _queries_for_plan(plan: VideoPlan) -> list[str]:
+    text = " ".join(
+        [
+            plan.topic,
+            plan.angle,
+            plan.title,
+            " ".join(scene.narration for scene in plan.scenes),
+            " ".join(str(getattr(scene, "visual", getattr(scene, "visual_style", ""))) for scene in plan.scenes),
+        ]
+    ).lower()
+    queries: list[str] = []
+    if any(token in text for token in ["creator", "influencer", "youtube", "shorts", "social", "content"]):
+        queries.extend(
+            [
+                "content creator workspace",
+                "video editor computer",
+                "social media creator filming",
+                "podcast studio technology",
+                "creator desk setup",
+            ]
+        )
+    if any(token in text for token in ["science", "research", "lab", "biology", "space", "quantum"]):
+        queries.extend(
+            [
+                "science laboratory technology",
+                "researcher computer lab",
+                "space technology control room",
+                "engineer technology screen",
+            ]
+        )
+    if any(token in text for token in ["cyber", "security", "privacy", "hack", "access", "permission", "vault"]):
+        queries.extend(
+            [
+                "cyber security server room",
+                "security operations center",
+                "digital lock technology",
+                "data center warning lights",
+            ]
+        )
+    if any(token in text for token in ["gadget", "phone", "laptop", "device", "hardware", "chip"]):
+        queries.extend(
+            [
+                "new technology gadgets",
+                "smartphone hands close up",
+                "electronics desk setup",
+                "computer chip technology",
+            ]
+        )
+    if any(token in text for token in ["ai", "agent", "automation", "robot", "machine learning", "software"]):
+        queries.extend(
+            [
+                "artificial intelligence technology",
+                "software developer coding",
+                "automation technology office",
+                "data visualization computer",
+                "futuristic technology interface",
+            ]
+        )
+    queries.extend(DEFAULT_PEXELS_QUERIES)
+    return _dedupe_queries(queries)
+
+
+def _dedupe_queries(queries: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for query in queries:
+        cleaned = re.sub(r"\s+", " ", query).strip()
+        key = cleaned.lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        result.append(cleaned)
+        if len(result) >= 16:
+            break
+    return result or DEFAULT_PEXELS_QUERIES[:16]
 
 
 def _ass_time(seconds: float) -> str:

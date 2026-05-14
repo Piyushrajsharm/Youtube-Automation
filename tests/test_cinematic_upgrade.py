@@ -12,11 +12,13 @@ from viralforge.automation import choose_fresh_topic, recover_incomplete_render_
 from viralforge.google_video_client import _extract_video_uri
 from viralforge.google_video_adapter import _veo_prompt
 from viralforge.growth import finalize_metadata
-from viralforge.models import ResearchBundle, ResearchSource, ScenePlan, TrendItem, UploadMetadata, VideoPlan
+from viralforge.models import ResearchBundle, ResearchSource, Scene, ScenePlan, TrendItem, UploadMetadata, VideoPlan
 from viralforge.nvidia_client import NvidiaProviderError, NvidiaUnifiedClient, _video_endpoint_for
 from viralforge.nvidia_video_adapter import image_data_uri_from_frame
 from viralforge.pexels_client import _best_video_file
-from viralforge.pexels_demo_renderer import _ass_script, _caption_groups
+from viralforge.pexels_client import PexelsClient, PexelsVideoCandidate
+from viralforge.pexels_broll_adapter import _select_fresh_candidates
+from viralforge.pexels_demo_renderer import _ass_script, _caption_groups, _queries_for_plan
 from viralforge.scene_quality_checker import score_scene_quality
 from viralforge.shot_director import build_shot_sequence
 from viralforge.scriptwriter import fallback_plan
@@ -160,6 +162,121 @@ class CinematicUpgradeTests(unittest.TestCase):
         )
         self.assertIsNotNone(chosen)
         self.assertEqual(chosen["link"], "portrait")
+
+    def test_pexels_selection_avoids_recent_stock_ids(self):
+        candidates = [
+            PexelsVideoCandidate(
+                id=index,
+                url="",
+                image="",
+                duration=10,
+                width=1080,
+                height=1920,
+                user_name="Pexels",
+                user_url="",
+                query="AI technology office" if index < 4 else "creator workspace",
+                score=20 - index,
+                download_url="",
+                download_quality="hd",
+                download_width=1080,
+                download_height=1920,
+            )
+            for index in range(1, 8)
+        ]
+        selected = _select_fresh_candidates(candidates, {1, 2, 3}, 4)
+        selected_ids = {candidate.id for candidate in selected}
+        self.assertTrue({1, 2, 3}.isdisjoint(selected_ids))
+        self.assertEqual(len(selected), 4)
+
+    def test_pexels_selection_spreads_across_queries_before_reusing_one(self):
+        candidates = [
+            PexelsVideoCandidate(
+                id=index,
+                url="",
+                image="",
+                duration=10,
+                width=1080,
+                height=1920,
+                user_name="Pexels",
+                user_url="",
+                query=query,
+                score=20 - index,
+                download_url="",
+                download_quality="hd",
+                download_width=1080,
+                download_height=1920,
+            )
+            for index, query in enumerate(
+                [
+                    "AI technology office",
+                    "AI technology office",
+                    "video editor computer",
+                    "podcast studio technology",
+                    "business team laptop",
+                ],
+                start=1,
+            )
+        ]
+        selected = _select_fresh_candidates(candidates, set(), 4)
+        self.assertGreaterEqual(len({candidate.query for candidate in selected}), 4)
+
+    def test_pexels_search_continues_after_query_timeout(self):
+        class FakePexelsClient(PexelsClient):
+            def search_videos(self, query, **kwargs):
+                if query == "timeout":
+                    raise TimeoutError("network stalled")
+                return {
+                    "total_results": 1,
+                    "page": kwargs.get("page", 1),
+                    "per_page": kwargs.get("per_page", 12),
+                    "videos": [
+                        {
+                            "id": 42,
+                            "url": "https://example.com/video",
+                            "image": "",
+                            "duration": 9,
+                            "width": 1080,
+                            "height": 1920,
+                            "user": {"name": "Pexels", "url": "https://www.pexels.com/"},
+                            "video_files": [
+                                {
+                                    "file_type": "video/mp4",
+                                    "width": 1080,
+                                    "height": 1920,
+                                    "quality": "hd",
+                                    "link": "https://example.com/video.mp4",
+                                }
+                            ],
+                        }
+                    ],
+                }
+
+        client = FakePexelsClient(SimpleNamespace(pexels_api_key="key"))
+        selected, reports = client.collect_ranked_videos(["timeout", "working"], max_items=2)
+        self.assertEqual([candidate.id for candidate in selected], [42])
+        self.assertIn("error", reports[0])
+        self.assertEqual(reports[1]["returned"], 1)
+
+    def test_pexels_queries_are_topic_aware(self):
+        creator_plan = VideoPlan(
+            topic="creator economy AI tools",
+            angle="Creators use AI to edit Shorts faster.",
+            audience="creators",
+            title="AI creator workflow",
+            scenes=[Scene("AI edits creator videos.", "Creator Studio", "creator filming", 3)],
+            metadata=UploadMetadata(title="", description="", hashtags=[], tags=[]),
+        )
+        science_plan = VideoPlan(
+            topic="science technology breakthrough",
+            angle="A lab discovers a new battery material.",
+            audience="tech viewers",
+            title="Science breakthrough",
+            scenes=[Scene("A lab changes batteries.", "Lab Breakthrough", "science laboratory", 3)],
+            metadata=UploadMetadata(title="", description="", hashtags=[], tags=[]),
+        )
+        self.assertNotEqual(_queries_for_plan(creator_plan)[:3], _queries_for_plan(science_plan)[:3])
+        self.assertIn("content creator workspace", _queries_for_plan(creator_plan))
+        self.assertIn("science laboratory technology", _queries_for_plan(science_plan))
 
     def test_pexels_ass_has_subscribe_and_no_source_banner(self):
         scene = _scene()
