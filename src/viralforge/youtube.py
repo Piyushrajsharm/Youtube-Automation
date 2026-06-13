@@ -163,7 +163,7 @@ def _youtube_service(settings: Settings) -> Any:
                     "then update the YOUTUBE_TOKEN_JSON secret on Hugging Face Space."
                 )
             flow = InstalledAppFlow.from_client_secrets_file(str(settings.youtube_client_secrets), SCOPES)
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
         ensure_dir(settings.youtube_token_file.parent)
         settings.youtube_token_file.write_text(creds.to_json(), encoding="utf-8")
 
