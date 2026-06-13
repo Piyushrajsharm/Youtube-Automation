@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import random
 import time
 from pathlib import Path
@@ -95,6 +96,31 @@ def get_channel_stats(settings: Settings) -> dict[str, Any]:
     return response["items"][0].get("statistics", {})
 
 
+def youtube_token_status(settings: Settings) -> dict[str, Any]:
+    """Check YouTube OAuth token health without triggering a full auth flow."""
+    result: dict[str, Any] = {
+        "token_file_exists": settings.youtube_token_file.exists(),
+        "client_secrets_exists": settings.youtube_client_secrets.exists(),
+        "valid": False,
+        "expired": False,
+        "has_refresh_token": False,
+        "error": None,
+    }
+    if not settings.youtube_token_file.exists():
+        result["error"] = "Token file not found. Run: python -m viralforge.cli authorize"
+        return result
+    try:
+        from google.oauth2.credentials import Credentials
+
+        creds = Credentials.from_authorized_user_file(str(settings.youtube_token_file), SCOPES)
+        result["expired"] = bool(creds.expired)
+        result["has_refresh_token"] = bool(creds.refresh_token)
+        result["valid"] = bool(creds.valid)
+    except Exception as exc:
+        result["error"] = f"Token parse error: {type(exc).__name__}: {exc}"
+    return result
+
+
 def _youtube_service(settings: Settings) -> Any:
     if not settings.youtube_client_secrets.exists():
         raise FileNotFoundError(
@@ -113,8 +139,24 @@ def _youtube_service(settings: Settings) -> Any:
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except Exception as exc:
+                raise RuntimeError(
+                    f"YouTube OAuth token refresh failed: {type(exc).__name__}: {exc}. "
+                    "The refresh token has likely expired or been revoked. "
+                    "If your Google Cloud project is in 'Testing' mode, tokens expire after 7 days. "
+                    "Fix: Re-authorize locally with 'python -m viralforge.cli authorize', "
+                    "then update the YOUTUBE_TOKEN_JSON secret on Hugging Face Space."
+                ) from exc
         else:
+            if os.getenv("SPACE_ID"):
+                raise RuntimeError(
+                    "YouTube OAuth token is missing or invalid, and interactive re-authorization "
+                    "is not possible on Hugging Face Space. "
+                    "Fix: Re-authorize locally with 'python -m viralforge.cli authorize', "
+                    "then update the YOUTUBE_TOKEN_JSON secret on Hugging Face Space."
+                )
             flow = InstalledAppFlow.from_client_secrets_file(str(settings.youtube_client_secrets), SCOPES)
             creds = flow.run_local_server(port=0)
         ensure_dir(settings.youtube_token_file.parent)

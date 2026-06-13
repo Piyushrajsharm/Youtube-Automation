@@ -126,7 +126,7 @@ def load_settings() -> Settings:
     niche = os.getenv("CHANNEL_NICHE", "tech explainers,AI tools,science")
     return Settings(
         project_root=PROJECT_ROOT,
-        nvidia_api_key=os.getenv("NVIDIA_API_KEY", "").strip(),
+        nvidia_api_key=(os.getenv("NVIDIA_API_KEY") or os.getenv("NVIDIA_SD35_API_KEY") or "").strip(),
         nvidia_base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/"),
         nvidia_model=os.getenv("NVIDIA_MODEL", "mistralai/mistral-large-3-675b-instruct-2512").strip(),
         nvidia_fallback_model=os.getenv("NVIDIA_FALLBACK_MODEL", "nvidia/nemotron-3-super-120b-a12b").strip(),

@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 
 from viralforge.config import load_settings, load_strategy
 from viralforge.secure_bot import OWNER, SecureTelegramBot
+from viralforge.youtube import youtube_token_status
 
 
 BOT_RESTART_DELAY_SECONDS = 30
@@ -82,6 +83,13 @@ def _start_bot_once() -> None:
 
 def _health_payload() -> dict[str, Any]:
     thread_alive = bool(_bot_thread and _bot_thread.is_alive())
+    # Check YouTube token health
+    yt_token_health: dict[str, Any] | None = None
+    try:
+        settings = load_settings()
+        yt_token_health = youtube_token_status(settings)
+    except Exception:
+        yt_token_health = {"error": "Could not load settings to check token."}
     return {
         "status": "running" if thread_alive and not _bot_last_error else "degraded" if thread_alive else "starting",
         "service": "viralforge-huggingface-space",
@@ -91,8 +99,9 @@ def _health_payload() -> dict[str, Any]:
         "last_error": _bot_last_error,
         "youtube_client_secret_configured": bool(os.getenv("YOUTUBE_CLIENT_SECRETS") or os.getenv("YOUTUBE_CLIENT_SECRETS_JSON")),
         "youtube_token_configured": bool(os.getenv("YOUTUBE_TOKEN_FILE") or os.getenv("YOUTUBE_TOKEN_JSON")),
+        "youtube_token_health": yt_token_health,
         "telegram_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
-        "nvidia_configured": bool(os.getenv("NVIDIA_API_KEY")),
+        "nvidia_configured": bool(os.getenv("NVIDIA_API_KEY") or os.getenv("NVIDIA_SD35_API_KEY")),
         "pexels_configured": bool(os.getenv("PEXELS_API_KEY")),
         "telegram_webhook_configured": bool(os.getenv("TELEGRAM_WEBHOOK_SECRET")),
     }
