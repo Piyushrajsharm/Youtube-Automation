@@ -138,18 +138,23 @@ def _youtube_service(settings: Settings) -> Any:
         creds = Credentials.from_authorized_user_file(str(settings.youtube_token_file), SCOPES)
 
     if not creds or not creds.valid:
+        refreshed = False
         if creds and creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
+                refreshed = True
             except Exception as exc:
-                raise RuntimeError(
-                    f"YouTube OAuth token refresh failed: {type(exc).__name__}: {exc}. "
-                    "The refresh token has likely expired or been revoked. "
-                    "If your Google Cloud project is in 'Testing' mode, tokens expire after 7 days. "
-                    "Fix: Re-authorize locally with 'python -m viralforge.cli authorize', "
-                    "then update the YOUTUBE_TOKEN_JSON secret on Hugging Face Space."
-                ) from exc
-        else:
+                if os.getenv("SPACE_ID"):
+                    raise RuntimeError(
+                        f"YouTube OAuth token refresh failed: {type(exc).__name__}: {exc}. "
+                        "The refresh token has likely expired or been revoked. "
+                        "If your Google Cloud project is in 'Testing' mode, tokens expire after 7 days. "
+                        "Fix: Re-authorize locally with 'python -m viralforge.cli authorize', "
+                        "then update the YOUTUBE_TOKEN_JSON secret on Hugging Face Space."
+                    ) from exc
+                print(f"Warning: Token refresh failed locally ({exc}). Launching interactive login...", flush=True)
+
+        if not refreshed:
             if os.getenv("SPACE_ID"):
                 raise RuntimeError(
                     "YouTube OAuth token is missing or invalid, and interactive re-authorization "
