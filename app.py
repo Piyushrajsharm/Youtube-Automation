@@ -829,6 +829,16 @@ async def control_render_upload(request: Request) -> dict[str, Any]:
     return {"ok": True, "job": job}
 
 
+@app.get("/control/test-trigger")
+def control_test_trigger(topic: str = "Future of Quantum Computing") -> dict[str, Any]:
+    bot = _bot_or_503()
+    owner_id = int(bot.settings.telegram_owner_chat_ids[0]) if bot.settings.telegram_owner_chat_ids else 0
+    job = bot.store.create_job(job_type="render_upload", topic=topic, chat_id=owner_id, role=OWNER)
+    bot.jobs.put(job["id"])
+    print(f"Test trigger queued render_upload job {job['id']} topic={topic}", flush=True)
+    return {"ok": True, "job": job}
+
+
 @app.post("/control/autopilot")
 async def control_autopilot(request: Request) -> dict[str, Any]:
     _require_admin_secret(request)
