@@ -885,6 +885,21 @@ def control_test_dispatch() -> dict[str, Any]:
         return {"error": str(exc)}
 
 
+@app.get("/control/test-settings")
+def control_test_settings() -> dict[str, Any]:
+    bot = _bot_or_503()
+    token = bot.settings.github_token
+    repo = bot.settings.github_repo
+    mode = bot.settings.render_mode
+    return {
+        "github_repo": repo,
+        "github_token_len": len(token) if token else 0,
+        "github_token_prefix": token[:10] if token else "",
+        "github_token_suffix": token[-10:] if token else "",
+        "render_mode": mode
+    }
+
+
 @app.post("/control/render-upload")
 async def control_render_upload(request: Request) -> dict[str, Any]:
     _require_admin_secret(request)
