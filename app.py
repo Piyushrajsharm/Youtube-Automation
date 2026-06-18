@@ -855,6 +855,24 @@ def control_git_runs() -> dict[str, Any]:
         return {"ok": False, "error": str(exc)}
 
 
+@app.get("/control/git-workflows")
+def control_git_workflows() -> dict[str, Any]:
+    bot = _bot_or_503()
+    token = bot.settings.github_token
+    repo = bot.settings.github_repo
+    url = f"https://api.github.com/repos/{repo}/actions/workflows"
+    headers = {
+        "Authorization": f"token {token}" if token else "",
+        "User-Agent": "FastAPI"
+    }
+    try:
+        import requests
+        r = requests.get(url, headers=headers, timeout=10)
+        return r.json()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.get("/control/test-dispatch")
 def control_test_dispatch() -> dict[str, Any]:
     bot = _bot_or_503()
