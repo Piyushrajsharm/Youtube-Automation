@@ -25,8 +25,10 @@ jobs:
           npm install
 
       - name: Prepare Plan
+        env:
+          PAYLOAD_JSON: ${{ toJson(github.event.client_payload) }}
         run: |
-          echo '${{ toJson(github.event.client_payload) }}' > remotion/payload.json
+          echo "$PAYLOAD_JSON" > remotion/payload.json
           python -c "import json; payload = json.load(open('remotion/payload.json')) or {}; plan = payload.get('plan_json', {}); json.dump(plan, open('remotion/video_plan.json', 'w'))"
 
       - name: Render Video
@@ -38,11 +40,12 @@ jobs:
         run: |
           curl -v -F "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
                -F "video=@remotion/out/video.mp4" \
-               -F "caption=✅ Cloud Render Complete: ${{ github.event.client_payload && github.event.client_payload.topic || 'Auto Trend' }}" \
+               -F "caption=✅ Cloud Render Complete: $TOPIC" \
                "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendVideo"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TOPIC: ${{ github.event.client_payload && github.event.client_payload.topic || 'Auto Trend' }}
 
       - name: Setup Python
         if: env.HAS_SECRET == 'true'
@@ -57,10 +60,13 @@ jobs:
 
       - name: Write YouTube Credentials
         if: env.HAS_SECRET == 'true'
+        env:
+          CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}
+          YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN_JSON }}
         run: |
           mkdir -p credentials
-          echo '${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}' > credentials/client_secret.json
-          echo '${{ secrets.YOUTUBE_TOKEN_JSON }}' > credentials/youtube_token.json
+          echo "$CLIENT_SECRETS" > credentials/client_secret.json
+          echo "$YOUTUBE_TOKEN" > credentials/youtube_token.json
 
       - name: Upload to YouTube
         if: env.HAS_SECRET == 'true'
