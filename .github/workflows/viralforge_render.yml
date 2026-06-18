@@ -24,7 +24,7 @@ jobs:
 
       - name: Prepare Plan
         run: |
-          echo '${{ json(github.event.client_payload.plan_json) }}' > remotion/video_plan.json
+          echo '${{ toJson(github.event.client_payload.plan_json) }}' > remotion/video_plan.json
 
       - name: Render Video
         run: |
@@ -42,25 +42,25 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Setup Python
-        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
+        if: secrets.YOUTUBE_TOKEN_JSON != ''
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install Python Dependencies
-        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
+        if: secrets.YOUTUBE_TOKEN_JSON != ''
         run: |
           pip install -e .
 
       - name: Write YouTube Credentials
-        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
+        if: secrets.YOUTUBE_TOKEN_JSON != ''
         run: |
           mkdir -p credentials
           echo '${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}' > credentials/client_secret.json
           echo '${{ secrets.YOUTUBE_TOKEN_JSON }}' > credentials/youtube_token.json
 
       - name: Upload to YouTube
-        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
+        if: secrets.YOUTUBE_TOKEN_JSON != ''
         run: |
           python -c "import json; plan = json.load(open('remotion/video_plan.json')); json.dump(plan['metadata'], open('remotion/metadata.json', 'w'))"
           python -m viralforge.cli upload --video remotion/out/video.mp4 --metadata remotion/metadata.json
