@@ -3,6 +3,7 @@ name: ViralForge Cloud Render
 on:
   repository_dispatch:
     types: [render_video]
+  workflow_dispatch:
 
 jobs:
   render:
