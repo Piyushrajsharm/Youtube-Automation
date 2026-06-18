@@ -822,6 +822,39 @@ def control_test_jobs() -> dict[str, Any]:
     }
 
 
+@app.get("/control/git-runs")
+def control_git_runs() -> dict[str, Any]:
+    bot = _bot_or_503()
+    token = bot.settings.github_token
+    repo = bot.settings.github_repo
+    url = f"https://api.github.com/repos/{repo}/actions/runs?per_page=5"
+    headers = {
+        "Authorization": f"token {token}" if token else "",
+        "User-Agent": "FastAPI"
+    }
+    try:
+        import requests
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            runs = []
+            for run in data.get("workflow_runs", []):
+                runs.append({
+                    "id": run.get("id"),
+                    "name": run.get("name"),
+                    "status": run.get("status"),
+                    "conclusion": run.get("conclusion"),
+                    "event": run.get("event"),
+                    "html_url": run.get("html_url"),
+                    "created_at": run.get("created_at"),
+                })
+            return {"ok": True, "runs": runs}
+        else:
+            return {"ok": False, "status_code": r.status_code, "text": r.text}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 @app.post("/control/render-upload")
 async def control_render_upload(request: Request) -> dict[str, Any]:
     _require_admin_secret(request)
