@@ -855,6 +855,36 @@ def control_git_runs() -> dict[str, Any]:
         return {"ok": False, "error": str(exc)}
 
 
+@app.get("/control/test-dispatch")
+def control_test_dispatch() -> dict[str, Any]:
+    bot = _bot_or_503()
+    token = bot.settings.github_token
+    repo = bot.settings.github_repo
+    url = f"https://api.github.com/repos/{repo}/dispatches"
+    headers = {
+        "Authorization": f"token {token}" if token else "",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "FastAPI"
+    }
+    payload = {
+        "event_type": "render_video",
+        "client_payload": {
+            "topic": "Test Topic",
+            "plan_json": {}
+        }
+    }
+    try:
+        import requests
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        return {
+            "status_code": resp.status_code,
+            "headers": dict(resp.headers),
+            "text": resp.text
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.post("/control/render-upload")
 async def control_render_upload(request: Request) -> dict[str, Any]:
     _require_admin_secret(request)
