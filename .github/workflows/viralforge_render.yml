@@ -31,6 +31,12 @@ jobs:
           echo "$PAYLOAD_JSON" > remotion/payload.json
           python -c "import json; payload = json.load(open('remotion/payload.json')) or {}; plan = payload.get('plan_json', {}); json.dump(plan, open('remotion/video_plan.json', 'w'))"
 
+      - name: Install Browser Dependencies
+        run: |
+          cd remotion
+          npx remotion browser install
+          sudo npx remotion browser ensure-deps
+
       - name: Render Video
         run: |
           cd remotion
