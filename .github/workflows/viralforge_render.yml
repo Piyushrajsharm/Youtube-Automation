@@ -24,7 +24,8 @@ jobs:
 
       - name: Prepare Plan
         run: |
-          echo '${{ toJson(github.event.client_payload.plan_json) }}' > remotion/video_plan.json
+          echo '${{ toJson(github.event.client_payload) }}' > remotion/payload.json
+          python -c "import json; payload = json.load(open('remotion/payload.json')) or {}; plan = payload.get('plan_json', {}); json.dump(plan, open('remotion/video_plan.json', 'w'))"
 
       - name: Render Video
         run: |
@@ -35,11 +36,12 @@ jobs:
         run: |
           curl -v -F "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
                -F "video=@remotion/out/video.mp4" \
-               -F "caption=✅ Cloud Render Complete: ${{ github.event.client_payload.topic }}" \
+               -F "caption=✅ Cloud Render Complete: $TOPIC" \
                "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendVideo"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TOPIC: ${{ github.event.client_payload && github.event.client_payload.topic || 'Auto Trend' }}
 
       - name: Setup Python
         if: secrets.YOUTUBE_TOKEN_JSON != ''
