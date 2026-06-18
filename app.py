@@ -813,6 +813,15 @@ def control_jobs(request: Request) -> dict[str, Any]:
     }
 
 
+@app.get("/control/test-jobs")
+def control_test_jobs() -> dict[str, Any]:
+    bot = _bot_or_503()
+    return {
+        "jobs": bot.store.recent_jobs(12),
+        "queue_size": bot.jobs.qsize(),
+    }
+
+
 @app.post("/control/render-upload")
 async def control_render_upload(request: Request) -> dict[str, Any]:
     _require_admin_secret(request)
