@@ -41,33 +41,25 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Setup Python
-        if: env.HAS_SECRET == 'true'
+        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-        env:
-          HAS_SECRET: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
 
       - name: Install Python Dependencies
-        if: env.HAS_SECRET == 'true'
+        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
         run: |
           pip install -e .
-        env:
-          HAS_SECRET: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
 
       - name: Write YouTube Credentials
-        if: env.HAS_SECRET == 'true'
+        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
         run: |
           mkdir -p credentials
           echo '${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}' > credentials/client_secret.json
           echo '${{ secrets.YOUTUBE_TOKEN_JSON }}' > credentials/youtube_token.json
-        env:
-          HAS_SECRET: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
 
       - name: Upload to YouTube
-        if: env.HAS_SECRET == 'true'
+        if: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
         run: |
           python -c "import json; plan = json.load(open('remotion/video_plan.json')); json.dump(plan['metadata'], open('remotion/metadata.json', 'w'))"
           python -m viralforge.cli upload --video remotion/out/video.mp4 --metadata remotion/metadata.json
-        env:
-          HAS_SECRET: ${{ secrets.YOUTUBE_TOKEN_JSON != '' }}
